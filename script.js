@@ -611,44 +611,112 @@ function renderHeatmap(f) {
 function heatClass(v) { return v >= 60 ? 'score-high' : v >= 30 ? 'score-mid' : 'score-low'; }
 
 function renderTrendChart(f) {
-  const metric = f.metric === 'All' ? null : f.metric;
+  // Always ALL metrics — each metric gets its own line
+  // Filter applies ONLY to center/region/zone (NOT metric)
   const center = f.center === 'All' ? null : f.center;
-  const rows = DATA.rawRows.filter(r =>
-    (f.region === 'All' || r.region === f.region) && (f.zone === 'All' || r.zone === f.zone) &&
-    (!center || r.center === center) && (!metric || r.metric === metric)
+  const baseRows = DATA.rawRows.filter(r =>
+    (f.region === 'All' || r.region === f.region) &&
+    (f.zone  === 'All' || r.zone  === f.zone) &&
+    (!center || r.center === center)
   );
-  const byDate = {};
-  DATA.meta.dates.forEach(d => { byDate[d] = { sum: 0, centers: {} }; });
-  rows.forEach(r => {
-    const b = byDate[r.date]; if (!b) return;
-    b.sum += (r.metricAchPct || 0);
-    b.centers[r.center] = 1;
+
+  const metricColors = {
+    'Admissions AY26':                { line: '#6366f1', fill: 'rgba(99,102,241,0.12)' },
+    'Attendance':                     { line: '#14b8a6', fill: 'rgba(20,184,166,0.12)' },
+    'EMI Collection':                 { line: '#f97316', fill: 'rgba(249,115,22,0.12)'  },
+    'Test Performance and Attendance':{ line: '#e11d48', fill: 'rgba(225,29,72,0.12)'   }
+  };
+
+  const dates = DATA.meta.dates;
+
+  // ─── Per-metric datasets ───
+  const datasets = METRIC_ORDER.map(metric => {
+    const byDate = {};
+    dates.forEach(d => { byDate[d] = { sum: 0, count: 0 }; });
+
+    baseRows.forEach(r => {
+      if (r.metric !== metric) return;
+      const b = byDate[r.date];
+      if (!b) return;
+      if (r.metricAchPct != null) { b.sum += r.metricAchPct; b.count++; }
+    });
+
+    const values = dates.map(d => {
+      const b = byDate[d];
+      return b.count > 0 ? Math.round((b.sum / b.count) * 100) / 100 : null;
+    });
+
+    const c = metricColors[metric] || { line: '#94a3b8', fill: 'rgba(148,163,184,0.12)' };
+    return {
+      label: metric,
+      data: values,
+      borderColor: c.line,
+      backgroundColor: c.fill,
+      fill: false,
+      tension: 0.4,
+      pointRadius: 3,
+      pointHoverRadius: 6,
+      pointBackgroundColor: c.line,
+      borderWidth: 2.5,
+      spanGaps: true
+    };
   });
-  const values = DATA.meta.dates.map(d => {
-    const b = byDate[d];
-    return Math.round((b.sum / (Object.keys(b.centers).length || 1)) * 100) / 100;
+
+  // ─── 5th dataset: All Metrics Combined ───
+  const allByDate = {};
+  dates.forEach(d => { allByDate[d] = { sum: 0, count: 0 }; });
+  baseRows.forEach(r => {
+    const b = allByDate[r.date]; if (!b) return;
+    if (r.metricAchPct != null) { b.sum += r.metricAchPct; b.count++; }
   });
-  const label = (center || 'All Centers') + ' \u2014 ' + (metric || 'All Metrics');
+  const allValues = dates.map(d => {
+    const b = allByDate[d];
+    return b.count > 0 ? Math.round((b.sum / b.count) * 100) / 100 : null;
+  });
+  datasets.push({
+    label: 'All Metrics Combined',
+    data: allValues,
+    borderColor: '#1e293b',
+    backgroundColor: function(ctx) {
+      if (!ctx.chart.chartArea) return 'rgba(30,41,59,0.08)';
+      var g = ctx.chart.ctx.createLinearGradient(0, ctx.chart.chartArea.top, 0, ctx.chart.chartArea.bottom);
+      g.addColorStop(0, 'rgba(30,41,59,0.15)');
+      g.addColorStop(1, 'rgba(30,41,59,0.01)');
+      return g;
+    },
+    fill: true,
+    tension: 0.4,
+    pointRadius: 3,
+    pointHoverRadius: 7,
+    pointBackgroundColor: '#1e293b',
+    borderWidth: 2,
+    borderDash: [5, 3],
+    spanGaps: true
+  });
+
   upsertChart('trend', 'chartTrend', {
     type: 'line',
-    data: {
-      labels: DATA.meta.dates,
-      datasets: [{
-        label, data: values, borderColor: '#4f46e5',
-        backgroundColor: (ctx) => {
-          const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 300);
-          g.addColorStop(0, 'rgba(79,70,229,0.25)');
-          g.addColorStop(1, 'rgba(79,70,229,0.01)');
-          return g;
-        },
-        fill: true, tension: 0.4, pointRadius: 4, pointHoverRadius: 7,
-        pointBackgroundColor: '#4f46e5', borderWidth: 3
-      }]
-    },
+    data: { labels: dates, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { tooltip: { callbacks: { label: ctx => ctx.parsed.y.toFixed(2) + '%' } } },
-      scales: { y: { grid: { color: '#f1f5f9' }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false } } }
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 14, padding: 14, font: { size: 11 } } },
+        tooltip: {
+          mode: 'index', intersect: false,
+          callbacks: {
+            label: ctx => ctx.parsed.y != null ? ' ' + ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%' : ''
+          }
+        }
+      },
+      scales: {
+        y: {
+          grid: { color: '#f1f5f9' },
+          ticks: { callback: v => v + '%' },
+          beginAtZero: true
+        },
+        x: { grid: { display: false } }
+      }
     }
   });
 }
