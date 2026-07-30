@@ -324,6 +324,7 @@ function computeRanks_(items, scoreField, rankField) {
   }
 }
 
+
 function computeZoneRanks_(centerSummary) {
   Object.keys(groupBy_(centerSummary, 'zone')).forEach(zone =>
     computeRanks_(groupBy_(centerSummary, 'zone')[zone], 'totalScore', 'zoneRank'));
