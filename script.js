@@ -22,7 +22,6 @@ let DATA = null;
 const CHARTS = {};
 const DOM = {};
 let darkMode = false;
-let stackedMode = false; // Target/Cap/Achieved chart: false = grouped columns, true = true stacked columns
 
 /* ─── Sub-metric definitions (for pivot table) ─── */
 const SM_LIST = [
@@ -63,8 +62,6 @@ function cacheDOM() {
   DOM.filterCenter = document.getElementById('filterCenter');
   DOM.filterMetric = document.getElementById('filterMetric');
   DOM.resetFiltersBtn = document.getElementById('resetFiltersBtn');
-  DOM.toggleStackedBtn = document.getElementById('toggleStackedBtn');
-  DOM.toggleStackedLabel = document.getElementById('toggleStackedLabel');
   DOM.latestSearch = document.getElementById('latestSearch');
   DOM.exportCsvBtn = document.getElementById('exportCsvBtn');
 
@@ -429,12 +426,6 @@ function wireEvents() {
   DOM.filterCenter.addEventListener('change', renderAll);
   DOM.filterMetric.addEventListener('change', renderAll);
 
-  DOM.toggleStackedBtn.addEventListener('click', () => {
-    stackedMode = !stackedMode;
-    DOM.toggleStackedLabel.textContent = stackedMode ? 'Stacked' : 'Grouped';
-    renderTargetCapAchievedChart(getFilters());
-  });
-
   DOM.resetFiltersBtn.addEventListener('click', () => {
     fillSelect(DOM.filterDate, DATA.meta.dates.map(d => ({ v: d, l: d })), DATA.meta.lastUpdatedRaw);
     DOM.filterRegion.value = 'All';
@@ -485,7 +476,6 @@ function renderAll() {
   renderKpis(f);
   renderTopBottomChart(f);
   renderZoneComparisonChart(f);
-  renderTargetCapAchievedChart(f);
   renderHeatmap(f);
   renderTrendChart(f);
   renderZoneTab(f);
@@ -583,71 +573,6 @@ function renderZoneComparisonChart(f) {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.y.toFixed(2) + '%' } } },
       scales: { y: { grid: { color: '#f1f5f9' }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false } } }
-    }
-  });
-}
-
-/* ─── Target / Min-Max Cap / Achieved — column chart ─── */
-function computeSubmetricAverages_(rows) {
-  // rows: raw rows already filtered to the selected date/region/zone/center
-  const bySub = {};
-  SM_LIST.forEach(sm => {
-    bySub[sm.key] = { targetSum: 0, targetCount: 0, capSum: 0, capCount: 0, achSum: 0, achCount: 0 };
-  });
-  rows.forEach(r => {
-    const smDef = SM_LIST.find(sm => sm.metric === r.metric && sm.sub === r.subMetric);
-    if (!smDef) return;
-    const b = bySub[smDef.key];
-    if (typeof r.target === 'number') { b.targetSum += r.target; b.targetCount++; }
-    if (typeof r.cap === 'number') { b.capSum += r.cap; b.capCount++; }        // '-' sanitizes to null and is skipped
-    if (typeof r.achieved === 'number') { b.achSum += r.achieved; b.achCount++; }
-  });
-  return SM_LIST.map(sm => {
-    const b = bySub[sm.key];
-    return {
-      label: sm.sub,
-      metric: sm.metric,
-      target: b.targetCount ? round2_(b.targetSum / b.targetCount) : null,
-      cap: b.capCount ? round2_(b.capSum / b.capCount) : null,
-      achieved: b.achCount ? round2_(b.achSum / b.achCount) : null
-    };
-  });
-}
-
-function renderTargetCapAchievedChart(f) {
-  const rows = DATA.rawRows.filter(r =>
-    r.date === f.date &&
-    (f.region === 'All' || r.region === f.region) &&
-    (f.zone === 'All' || r.zone === f.zone) &&
-    (f.center === 'All' || r.center === f.center)
-  );
-  const agg = computeSubmetricAverages_(rows);
-  const labels = agg.map(a => a.label);
-
-  upsertChart('targetCapAchieved', 'chartTargetCapAchieved', {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Target', data: agg.map(a => a.target), backgroundColor: '#6366f1', borderRadius: 4, borderSkipped: false, stack: stackedMode ? 'combined' : 'target' },
-        { label: 'Min/Max Cap', data: agg.map(a => a.cap), backgroundColor: '#f59e0b', borderRadius: 4, borderSkipped: false, stack: stackedMode ? 'combined' : 'cap' },
-        { label: 'Achieved', data: agg.map(a => a.achieved), backgroundColor: '#10b981', borderRadius: 4, borderSkipped: false, stack: stackedMode ? 'combined' : 'achieved' }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } },
-        tooltip: {
-          callbacks: {
-            label: ctx => ' ' + ctx.dataset.label + ': ' + (ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) + '%' : 'No data')
-          }
-        }
-      },
-      scales: {
-        x: { stacked: stackedMode, grid: { display: false }, ticks: { autoSkip: false, maxRotation: 30, minRotation: 0, font: { size: 10 } } },
-        y: { stacked: stackedMode, beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { callback: v => v + '%' } }
-      }
     }
   });
 }
