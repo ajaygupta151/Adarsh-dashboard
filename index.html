@@ -1,17 +1,23 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>VP Operations Command Center</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="style.css">
-  <!-- CDN dependencies -->
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+  <meta charset="UTF-8" />
+  <title>Metric Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+  <div class="dashboard-header">
+    <h2>Performance Dashboard</h2>
+  </div>
+
+  <!-- Container for individual metric cards -->
+  <div id="metrics-grid" class="metrics-grid"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
 
   <!-- ═══════ LOADING OVERLAY ═══════ -->
   <div id="loadingOverlay" class="fixed inset-0 flex items-center justify-center" style="background:#f0f2f8;z-index:60">
