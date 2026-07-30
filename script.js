@@ -957,12 +957,20 @@ function renderLatestTable() {
       r.zonalRank != null ? r.zonalRank : '\u2014'
     );
 
+    // Column ranges for group coloring
+    const tSt = ID_COLS.length, tEn = tSt + tgtFields.length;
+    const aSt = tEn,       aEn = aSt + achFields.length;
+    const pSt = aEn,       pEn = pSt + pctFields.length;
+
     body += '<tr>';
     for (let ci = 0; ci < vals.length; ci++) {
       let cls = 'detail-cell';
       if (ci === 0) cls = 'detail-rownum';
-      else if (isFrozen(ci)) cls += ' detail-frozen';
-      else cls += ' detail-num';
+      else if (isFrozen(ci)) cls += ' detail-frozen' + (ci === 3 ? ' detail-frozen-zone' : '');
+      else if (ci >= tSt && ci < tEn) cls += ' detail-num detail-target';
+      else if (ci >= aSt && ci < aEn) cls += ' detail-num detail-achieved';
+      else if (ci >= pSt)              cls += ' detail-num detail-pct';
+      else                              cls += ' detail-num';
 
       body += '<td class="' + cls + '"' + (isFrozen(ci) ? ' style="left:' + frozenPos[ci] + 'px"' : '') + '>';
       body += vals[ci];

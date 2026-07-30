@@ -171,22 +171,66 @@ select, input[type="text"] { outline: none; }
   padding: 3px 4px !important;
 }
 
+/* Frozen cells — SOLID backgrounds so scrollable data behind is fully covered */
 .detail-frozen {
   position: sticky;
   z-index: 8;
-  background: inherit !important;
+  background: #fff !important;
   text-align: left;
 }
-
-.detail-grid tbody tr:hover td.detail-frozen {
+.detail-grid tbody tr:nth-child(even) td.detail-frozen {
+  background: #edf1f7 !important;
+}
+.detail-grid tbody tr:nth-child(even) td.detail-rownum {
+  background: #edf1f7 !important;
+}
+.detail-grid tbody tr:hover td.detail-frozen,
+.detail-grid tbody tr:hover td.detail-rownum {
   background: #d6e0f0 !important;
+}
+
+/* Right-edge shadow on last frozen col (Zone) — Excel-like separator */
+.detail-frozen-zone {
+  position: sticky;
+  z-index: 9;
+  border-right: 2px solid #9aa4b8 !important;
+}
+.detail-frozen-zone::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  background: linear-gradient(to right, rgba(0,0,0,0.12), transparent);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Don't clip frozen cells so the shadow can render outside */
+.detail-rownum,
+.detail-frozen {
+  overflow: visible !important;
 }
 
 /* ─── Text alignment ─── */
 .detail-num { text-align: center; }
 .detail-bold { font-weight: 600; }
 
-/* ─── Conditional formatting ─── */
+/* ─── Group background colors (Target / Achieved / Ach.%) ─── */
+.detail-target   { background: #eaf0fa !important; }  /* soft blue */
+.detail-achieved { background: #e6f5ea !important; }  /* soft green */
+.detail-pct      { background: #fff7e5 !important; }  /* soft amber */
+.detail-num.detail-target,
+.detail-num.detail-achieved,
+.detail-num.detail-pct { text-align: center; }
+
+/* hover overrides for group colors */
+.detail-grid tbody tr:hover td.detail-target   { background: #d4e2f5 !important; }
+.detail-grid tbody tr:hover td.detail-achieved { background: #c8ebd2 !important; }
+.detail-grid tbody tr:hover td.detail-pct      { background: #f5edc8 !important; }
+
+/* ─── Conditional formatting (text + bg for ach%) ─── */
 .cf-green { color: #1b5e20; font-weight: 600; }
 .cf-amber { color: #8d6e00; font-weight: 600; }
 .cf-orange { color: #c43e00; font-weight: 600; }
