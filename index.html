@@ -1,1 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VP Operations Command Center</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-[#0f172a] text-slate-100 min-h-screen font-sans antialiased">
 
+    <!-- Header / Navbar -->
+    <header class="bg-[#1e293b] border-b border-slate-700/80 px-6 py-4 shadow-md">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-indigo-600 rounded-lg text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">VP Operations Command Center</h1>
+                    <p class="text-xs text-slate-400">Center performance, targets & achievement analytics</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4 text-xs text-slate-400">
+                <span>Last Updated: July 30, 2026</span>
+                <button onclick="refreshDashboard()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-md text-slate-200 transition">
+                    🔄 Refresh
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Filters Section -->
+    <section class="max-w-7xl mx-auto px-6 py-6">
+        <div class="bg-[#1e293b] p-4 rounded-xl border border-slate-700/60 shadow-lg mb-6 grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">DATE</label>
+                <input type="date" value="2026-07-20" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">REGION</label>
+                <select class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                    <option>All Regions</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">ZONE</label>
+                <select class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                    <option>All Zones</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">CENTER</label>
+                <select class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                    <option>All Centers</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">METRIC VIEW</label>
+                <select class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                    <option>All Metrics</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Section Title -->
+        <div class="mb-4">
+            <h2 class="text-lg font-bold text-slate-100">Metric & Sub-Metric Performance Drill-Down</h2>
+            <p class="text-xs text-slate-400">Stacked comparison for Target vs Min/Max Cap vs Achieved percentages</p>
+        </div>
+
+        <!-- Dynamic Chart Cards Grid (Targeted by script.js) -->
+        <div id="charts-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Stacked bar charts render here dynamically -->
+        </div>
+    </section>
+
+    <!-- Main Logic Script -->
+    <script src="script.js"></script>
+</body>
+</html>
