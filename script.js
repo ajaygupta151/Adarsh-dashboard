@@ -22,6 +22,7 @@ let DATA = null;
 const CHARTS = {};
 const DOM = {};
 let darkMode = false;
+let currentChartLevel = 'metric'; // 'metric' or 'submetric'
 
 /* ─── Sub-metric definitions (for pivot table) ─── */
 const SM_LIST = [
@@ -40,6 +41,13 @@ document.addEventListener('DOMContentLoaded', () => {
   DOM.refreshBtn.addEventListener('click', () => location.reload());
   DOM.themeToggle.addEventListener('click', toggleTheme);
   DOM.exportCsvBtn.addEventListener('click', exportCsv);
+  
+  // Toggle events for metric / submetric interactive view
+  if (DOM.toggleMetricView && DOM.toggleSubMetricView) {
+    DOM.toggleMetricView.addEventListener('click', () => setChartLevel('metric'));
+    DOM.toggleSubMetricView.addEventListener('click', () => setChartLevel('submetric'));
+  }
+
   loadData();
 });
 
@@ -88,6 +96,9 @@ function cacheDOM() {
   DOM.rowCountLabel = document.getElementById('rowCountLabel');
   DOM.statusBarCount = document.getElementById('statusBarCount');
   DOM.detailSearch = document.getElementById('detailSearch');
+
+  DOM.toggleMetricView = document.getElementById('toggleMetricView');
+  DOM.toggleSubMetricView = document.getElementById('toggleSubMetricView');
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -107,6 +118,18 @@ function toggleTheme() {
     document.querySelectorAll('.bg-white, .kpi-card').forEach(el => el.style.background = '');
     document.querySelectorAll('.text-slate-800').forEach(el => el.style.color = '');
   }
+}
+
+function setChartLevel(level) {
+  currentChartLevel = level;
+  if (level === 'metric') {
+    DOM.toggleMetricView.className = "px-3 py-1 rounded-lg transition-all bg-white text-indigo-600 shadow-sm font-bold";
+    DOM.toggleSubMetricView.className = "px-3 py-1 rounded-lg transition-all text-slate-500 hover:text-slate-800";
+  } else {
+    DOM.toggleSubMetricView.className = "px-3 py-1 rounded-lg transition-all bg-white text-indigo-600 shadow-sm font-bold";
+    DOM.toggleMetricView.className = "px-3 py-1 rounded-lg transition-all text-slate-500 hover:text-slate-800";
+  }
+  renderTargetVsAchievedChart(getFilters());
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -474,6 +497,7 @@ function filteredCenterSummary(f) {
 function renderAll() {
   const f = getFilters();
   renderKpis(f);
+  renderTargetVsAchievedChart(f);
   renderTopBottomChart(f);
   renderZoneComparisonChart(f);
   renderHeatmap(f);
@@ -506,7 +530,6 @@ function renderKpis(f) {
   DOM.kpiAvgScore.textContent = avg.toFixed(2) + '%';
   DOM.kpiCenterCount.textContent = scores.length;
 
-  // Best region & zone
   const byRegion = {}, byZone = {};
   scores.forEach(c => {
     if (!byRegion[c.region]) byRegion[c.region] = [];
@@ -529,15 +552,132 @@ function renderKpis(f) {
   DOM.kpiBestZoneScore.textContent = bestZoneAvg.toFixed(2) + '%';
 
   const above60 = scores.filter(c => c.score >= 60).length;
-  DOM.insightTopRegion.textContent = '\uD83C\uDF1F Best Region: ' + bestRegion + ' (' + bestRegionAvg.toFixed(1) + '%)';
-  DOM.insightTopZone.textContent = '\uD83C\uDFAF Best Zone: ' + bestZone + ' (' + bestZoneAvg.toFixed(1) + '%)';
-  DOM.insightAboveTarget.textContent = '\uD83D\uDCC8 ' + above60 + '/' + scores.length + ' centers above 60%';
+  DOM.insightTopRegion.textContent = '🌟 Best Region: ' + bestRegion + ' (' + bestRegionAvg.toFixed(1) + '%)';
+  DOM.insightTopZone.textContent = '🎯 Best Zone: ' + bestZone + ' (' + bestZoneAvg.toFixed(1) + '%)';
+  DOM.insightAboveTarget.textContent = '📈 ' + above60 + '/' + scores.length + ' centers above 60%';
 }
 
-/* ─── Chart helpers ─── */
+/* ─── Dynamic Visual Chart: Target vs Cap vs Achieved ─── */
+function renderTargetVsAchievedChart(f) {
+  const filteredRows = DATA.rawRows.filter(r =>
+    r.date === f.date &&
+    (f.region === 'All' || r.region === f.region) &&
+    (f.zone === 'All' || r.zone === f.zone) &&
+    (f.center === 'All' || r.center === f.center) &&
+    (f.metric === 'All' || r.metric === f.metric)
+  );
+
+  let labels = [];
+  let targets = [];
+  let caps = [];
+  let achieved = [];
+
+  if (currentChartLevel === 'metric') {
+    const agg = {};
+    filteredRows.forEach(r => {
+      const m = r.metric;
+      if (!agg[m]) agg[m] = { targetSum: 0, capSum: 0, achSum: 0, count: 0 };
+      agg[m].targetSum += typeof r.target === 'number' ? r.target : 0;
+      agg[m].capSum += typeof r.cap === 'number' ? r.cap : 0;
+      agg[m].achSum += typeof r.achieved === 'number' ? r.achieved : 0;
+      agg[m].count += 1;
+    });
+
+    labels = Object.keys(agg);
+    labels.forEach(m => {
+      const count = agg[m].count || 1;
+      targets.push(round2_(agg[m].targetSum / count));
+      caps.push(round2_(agg[m].capSum / count));
+      achieved.push(round2_(agg[m].achSum / count));
+    });
+  } else {
+    const agg = {};
+    filteredRows.forEach(r => {
+      const key = r.metric + ' - ' + r.subMetric;
+      if (!agg[key]) agg[key] = { targetSum: 0, capSum: 0, achSum: 0, count: 0 };
+      agg[key].targetSum += typeof r.target === 'number' ? r.target : 0;
+      agg[key].capSum += typeof r.cap === 'number' ? r.cap : 0;
+      agg[key].achSum += typeof r.achieved === 'number' ? r.achieved : 0;
+      agg[key].count += 1;
+    });
+
+    labels = Object.keys(agg);
+    labels.forEach(k => {
+      const count = agg[k].count || 1;
+      targets.push(round2_(agg[k].targetSum / count));
+      caps.push(round2_(agg[k].capSum / count));
+      achieved.push(round2_(agg[k].achSum / count));
+    });
+  }
+
+  upsertChart('targetVsAchieved', 'chartTargetVsAchieved', {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Target',
+          data: targets,
+          backgroundColor: '#6366f1',
+          borderRadius: 6,
+          stack: 'Group 0'
+        },
+        {
+          label: 'Min / Max Cap',
+          data: caps,
+          backgroundColor: '#f59e0b',
+          borderRadius: 6,
+          stack: 'Group 0'
+        },
+        {
+          label: 'Achieved',
+          data: achieved,
+          backgroundColor: achieved.map((val, idx) => val >= targets[idx] ? '#10b981' : '#f43f5e'),
+          borderRadius: 6,
+          stack: 'Group 1'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { font: { size: 12, weight: 'bold' }, usePointStyle: true }
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          callbacks: {
+            label: function(context) {
+              const val = context.parsed.y;
+              return `${context.dataset.label}: ${val != null ? val : 'N/A'}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          stacked: true,
+          grid: { display: false },
+          ticks: { font: { size: 10, weight: '600' } }
+        },
+        y: {
+          stacked: true,
+          grid: { color: '#f1f5f9' },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
 function upsertChart(key, ctxId, config) {
   if (CHARTS[key]) CHARTS[key].destroy();
-  const ctx = document.getElementById(ctxId).getContext('2d');
+  const canvas = document.getElementById(ctxId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
   CHARTS[key] = new Chart(ctx, config);
 }
 
@@ -611,8 +751,6 @@ function renderHeatmap(f) {
 function heatClass(v) { return v >= 60 ? 'score-high' : v >= 30 ? 'score-mid' : 'score-low'; }
 
 function renderTrendChart(f) {
-  // Always ALL metrics — each metric gets its own line
-  // Filter applies ONLY to center/region/zone (NOT metric)
   const center = f.center === 'All' ? null : f.center;
   const baseRows = DATA.rawRows.filter(r =>
     (f.region === 'All' || r.region === f.region) &&
@@ -629,7 +767,6 @@ function renderTrendChart(f) {
 
   const dates = DATA.meta.dates;
 
-  // ─── Per-metric datasets ───
   const datasets = METRIC_ORDER.map(metric => {
     const byDate = {};
     dates.forEach(d => { byDate[d] = { sum: 0, count: 0 }; });
@@ -662,7 +799,6 @@ function renderTrendChart(f) {
     };
   });
 
-  // ─── 5th dataset: All Metrics Combined ───
   const allByDate = {};
   dates.forEach(d => { allByDate[d] = { sum: 0, count: 0 }; });
   baseRows.forEach(r => {
@@ -787,9 +923,8 @@ function renderRegionTab(f) {
 function scoreClass(v) { return v > 60 ? 'score-high' : v >= 30 ? 'score-mid' : 'score-low'; }
 
 /* ═══════════════════════════════════════════════════════════════
-   DETAILED DATA — PROFESSIONAL SINGLE-COLOR EXCEL GRID
+   DETAILED DATA TABLE
    ═══════════════════════════════════════════════════════════════ */
-
 function renderLatestTable() {
   const f = getFilters();
   const search = (DOM.detailSearch.value || '').toLowerCase().trim();
@@ -801,11 +936,8 @@ function renderLatestTable() {
     return (r.center + ' ' + r.region + ' ' + r.zone + ' ' + r.businessHead + ' ' + r.centerHead).toLowerCase().includes(search);
   });
 
-  // ─── Column definitions ───
-  // Only 4 frozen: #, Region, Center, Zone
   const ID_COLS = ['#','Region','Center','Zone'];
 
-  // Target columns — dynamically generated from SM_LIST like Achieved/Ach%
   function makeTgtFields() {
     var fields = [];
     SM_LIST.forEach(function(sm) {
@@ -814,28 +946,24 @@ function renderLatestTable() {
     });
     return fields;
   }
-  const tgtFields = makeTgtFields(); // 16 entries (8 × 2) // now 16, not 13
+  const tgtFields = makeTgtFields();
 
-  // Achieved columns (8)
   const achFields = SM_LIST.map(sm => ({
     group:'Achieved', metric:sm.metric, sub:sm.sub, field:'Achieved', key:sm.key+'Achieved'
   }));
 
-  // Ach% columns (8)
   const pctFields = SM_LIST.map(sm => ({
     group:'Ach. %', metric:sm.metric, sub:sm.sub, field:'%', key:sm.key+'AchPct', isPct:true
   }));
 
   const ALL_FIELDS = [].concat(tgtFields, achFields, pctFields);
 
-  // Final score columns (3)
   const FINAL_COLS = [
     {name:'Score', key:'scorePct', isPct:true},
     {name:'Rank', key:'overallRank'},
     {name:'Z-Rank', key:'zonalRank'}
   ];
 
-  // ─── Column enumeration ───
   const totalCols = ID_COLS.length + ALL_FIELDS.length + FINAL_COLS.length;
   const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const colLetters = [];
@@ -844,7 +972,6 @@ function renderLatestTable() {
     else colLetters.push('A' + letters[i - 26]);
   }
 
-  // Frozen columns: #(0), Region(38), Center(128), Zone(278)
   const frozenPos = [0, 38, 128, 278];
   const idWidths = [36, 90, 150, 60];
 
@@ -858,15 +985,8 @@ function renderLatestTable() {
     return '';
   }
 
-  // ─── 4-row single-color header ───
-  // Row 0: Letters (A B C...)
-  // Row 1: Groups (Targets | Achieved | Ach. %)
-  // Row 2: Metrics
-  // Row 3: Sub-metric / field names
-
   var h = '<thead>';
 
-  // Row 0: Letters
   h += '<tr class="detail-letter-row">';
   for (let ci = 0; ci < totalCols; ci++) {
     const w = ci < ID_COLS.length ? idWidths[ci] : 64;
@@ -874,7 +994,6 @@ function renderLatestTable() {
   }
   h += '</tr>';
 
-  // Row 1: Groups
   h += '<tr class="detail-group-row">';
   for (let ci = 0; ci < ID_COLS.length; ci++) {
     h += '<th' + fStyle(ci, 44) + '>' + (ci === 0 ? '' : ID_COLS[ci]) + '</th>';
@@ -887,7 +1006,6 @@ function renderLatestTable() {
   }
   h += '</tr>';
 
-  // Row 2: Metrics
   h += '<tr class="detail-metric-row">';
   for (let ci = 0; ci < ID_COLS.length; ci++) {
     h += '<th' + fStyle(ci, 38) + '></th>';
@@ -900,7 +1018,6 @@ function renderLatestTable() {
   }
   h += '</tr>';
 
-  // Row 3: Sub-metric / field
   h += '<tr class="detail-field-row">';
   for (let ci = 0; ci < ID_COLS.length; ci++) {
     h += '<th' + fStyle(ci, 32) + '>' + ID_COLS[ci] + '</th>';
@@ -920,7 +1037,6 @@ function renderLatestTable() {
   }
   h += '</tr></thead>';
 
-  // ─── Body ───
   function pctSpan(v) {
     if (v == null) return '<span class="cf-na">\u2014</span>';
     const cls = v >= 100 ? 'cf-green' : v >= 75 ? 'cf-amber' : v >= 50 ? 'cf-orange' : 'cf-red';
@@ -937,7 +1053,6 @@ function renderLatestTable() {
       r.zone || '\u2014'
     ];
 
-    // Data fields
     for (let fi = 0; fi < ALL_FIELDS.length; fi++) {
       const fld = ALL_FIELDS[fi];
       const raw = r[fld.key];
@@ -948,7 +1063,6 @@ function renderLatestTable() {
       }
     }
 
-    // Final cols
     vals.push(
       r.scorePct != null
         ? '<span class="' + (r.scorePct >= 80 ? 'cf-green' : r.scorePct >= 60 ? 'cf-amber' : 'cf-red') + '">' + r.scorePct.toFixed(1) + '%</span>'
@@ -957,7 +1071,6 @@ function renderLatestTable() {
       r.zonalRank != null ? r.zonalRank : '\u2014'
     );
 
-    // Column ranges for group coloring
     const tSt = ID_COLS.length, tEn = tSt + tgtFields.length;
     const aSt = tEn,       aEn = aSt + achFields.length;
     const pSt = aEn,       pEn = pSt + pctFields.length;
