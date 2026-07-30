@@ -479,6 +479,7 @@ function renderAll() {
   renderZoneComparisonChart(f);
   renderHeatmap(f);
   renderTrendChart(f);
+  renderSubMetricCharts(f);
   renderZoneTab(f);
   renderRegionTab(f);
   renderLatestTable();
@@ -1023,6 +1024,131 @@ function exportCsv() {
   link.download = 'VP_Dashboard_Data_' + new Date().toISOString().slice(0, 10) + '.csv';
   link.click();
   URL.revokeObjectURL(link.href);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SUB-METRIC STACKED BAR CHARTS
+   ═══════════════════════════════════════════════════════════════ */
+function renderSubMetricCharts(f) {
+  const container = document.getElementById('submetricChartsGrid');
+  const subtitle = document.getElementById('submetricSubtitle');
+  if (!container) return;
+
+  // Destroy old sub-metric charts
+  Object.keys(CHARTS).forEach(k => {
+    if (k.startsWith('submetric-')) { CHARTS[k].destroy(); delete CHARTS[k]; }
+  });
+  container.innerHTML = '';
+
+  let metrics = [];
+  let labelPrefix = '';
+  if (f.metric === 'All') {
+    metrics = DATA.meta.metrics;
+    labelPrefix = 'All Metrics';
+  } else {
+    metrics = [f.metric];
+    labelPrefix = f.metric;
+  }
+  if (subtitle) subtitle.textContent = labelPrefix + ' \u2014 Stacked view: Target, Min/Max Cap & Achieved by sub-metric';
+
+  // Base rows filtered by region/zone/center (but NOT metric)
+  const baseRows = DATA.rawRows.filter(r =>
+    r.date === f.date &&
+    (f.region === 'All' || r.region === f.region) &&
+    (f.zone   === 'All' || r.zone   === f.zone) &&
+    (f.center === 'All' || r.center === f.center)
+  );
+
+  if (baseRows.length === 0) {
+    container.innerHTML = '<p class="text-sm text-slate-400 col-span-2 text-center py-8">No data matches current filters.</p>';
+    return;
+  }
+
+  metrics.forEach((metric, mi) => {
+    const metricRows = baseRows.filter(r => r.metric === metric);
+    if (metricRows.length === 0) return;
+
+    // Group by sub-metric
+    const bySub = {};
+    metricRows.forEach(r => {
+      const sub = String(r.subMetric || 'Overall').trim();
+      if (!sub || sub === 'None' || sub === '-') return;
+      if (!bySub[sub]) bySub[sub] = { targetSum: 0, capSum: 0, achievedSum: 0, count: 0 };
+      bySub[sub].targetSum += (r.target  != null ? r.target : 0);
+      bySub[sub].capSum    += (r.cap     != null ? r.cap : 0);
+      bySub[sub].achievedSum += (r.achieved != null ? r.achieved : 0);
+      bySub[sub].count++;
+    });
+
+    const subLabels = Object.keys(bySub);
+    if (subLabels.length === 0) return;
+
+    const targetData    = subLabels.map(s => round2_(bySub[s].targetSum    / bySub[s].count));
+    const capData       = subLabels.map(s => round2_(bySub[s].capSum       / bySub[s].count));
+    const achievedData  = subLabels.map(s => round2_(bySub[s].achievedSum  / bySub[s].count));
+
+    // Card
+    const cardIdx = mi + '_' + metric.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+    const card = document.createElement('div');
+    card.className = 'bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5';
+
+    let headerHtml = '';
+    if (f.metric === 'All') {
+      headerHtml = '<div class="flex items-center gap-2 mb-3">' +
+        '<div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-bar"></i></div>' +
+        '<h3 class="font-semibold text-sm">' + escapeHtml(metric) + '</h3>' +
+        '<span class="text-xs text-slate-400 ml-auto">' + subLabels.length + ' sub-metrics</span></div>';
+    } else {
+      headerHtml = '<div class="flex items-center gap-2 mb-3">' +
+        '<div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-bar"></i></div>' +
+        '<h3 class="font-semibold text-sm">Sub-Metric Breakdown</h3>' +
+        '<span class="text-xs text-slate-400 ml-auto">' + subLabels.length + ' sub-metrics</span></div>';
+    }
+    card.innerHTML = headerHtml +
+      '<div class="relative" style="height:300px"><canvas id="submetric-canvas-' + cardIdx + '"></canvas></div>';
+    container.appendChild(card);
+
+    // Chart
+    const ctx = document.getElementById('submetric-canvas-' + cardIdx).getContext('2d');
+    const chartKey = 'submetric-' + cardIdx;
+    CHARTS[chartKey] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: subLabels,
+        datasets: [
+          { label: 'Achieved',   data: achievedData, backgroundColor: 'rgba(59,130,246,0.85)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4, stack: 'subStack' },
+          { label: 'Min/Max Cap', data: capData,      backgroundColor: 'rgba(245,158,11,0.85)', borderColor: '#f59e0b', borderWidth: 1, borderRadius: 4, stack: 'subStack' },
+          { label: 'Target',     data: targetData,    backgroundColor: 'rgba(16,185,129,0.85)', borderColor: '#10b981', borderWidth: 1, borderRadius: 4, stack: 'subStack' }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } },
+          tooltip: {
+            mode: 'index', intersect: false,
+            callbacks: {
+              label: function(ctx) {
+                return ctx.dataset.label + ': ' + (ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) : '0');
+              }
+            }
+          }
+        },
+        scales: {
+          x: { stacked: true, grid: { display: false } },
+          y: {
+            stacked: true, beginAtZero: true,
+            grid: { color: '#f1f5f9' },
+            ticks: { callback: function(v) { return v + '%'; } }
+          }
+        }
+      }
+    });
+  });
+
+  if (container.children.length === 0) {
+    container.innerHTML = '<p class="text-sm text-slate-400 col-span-2 text-center py-8">No sub-metric data for current selection.</p>';
+  }
 }
 
 function uniq(arr) { return Array.from(new Set(arr.filter(Boolean))); }
