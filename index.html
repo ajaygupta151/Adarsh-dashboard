@@ -1,279 +1,289 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Metric Dashboard</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Metric Performance Dashboard</title>
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: #f1f5f9;
+      color: #1e293b;
+      padding: 24px;
+    }
+
+    .dashboard-header {
+      margin-bottom: 24px;
+    }
+
+    .insights-bar {
+      background-color: #ffffff;
+      padding: 12px 20px;
+      border-radius: 12px;
+      display: flex;
+      gap: 24px;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+      gap: 20px;
+    }
+
+    .metric-card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-title-group h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .card-title-group p {
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background-color: #f1f5f9;
+      color: #475569;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 280px;
+      width: 100%;
+    }
+  </style>
 </head>
 <body>
-  <div class="dashboard-header">
-    <h2>Performance Dashboard</h2>
+
+  <!-- Top Insights Bar -->
+  <div class="insights-bar">
+    <span>💡 <strong>Insights</strong></span>
+    <span>☀️ Best Region: <strong>South (140.9%)</strong></span>
+    <span>🎯 Best Zone: <strong>Zone1 (137.4%)</strong></span>
+    <span>📈 <strong>111/111</strong> centers above 60%</span>
   </div>
 
-  <!-- Container for individual metric cards -->
-  <div id="metrics-grid" class="metrics-grid"></div>
-
-  <script src="app.js"></script>
-</body>
-</html>
-
-  <!-- ═══════ LOADING OVERLAY ═══════ -->
-  <div id="loadingOverlay" class="fixed inset-0 flex items-center justify-center" style="background:#f0f2f8;z-index:60">
-    <div class="text-center max-w-sm px-6">
-      <div class="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-indigo-600 to-fuchsia-600 flex items-center justify-center shadow-lg animate-pulse">
-        <i class="fa-solid fa-chart-line text-white text-2xl"></i>
-      </div>
-      <div class="skeleton h-5 w-48 mx-auto mb-3"></div>
-      <div class="skeleton h-3 w-32 mx-auto mb-6"></div>
-      <div class="flex gap-2 justify-center">
-        <div class="skeleton h-2 w-16 rounded-full"></div>
-        <div class="skeleton h-2 w-16 rounded-full"></div>
-        <div class="skeleton h-2 w-16 rounded-full"></div>
-      </div>
-      <p class="text-slate-400 text-sm mt-6 font-medium"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading dashboard data…</p>
-    </div>
+  <!-- Metric Charts Grid -->
+  <div class="metrics-grid" id="metricsGrid">
+    <!-- Dynamic metric cards rendered via JavaScript -->
   </div>
 
-  <!-- ═══════ MAIN APP ═══════ -->
-  <div id="app" class="hidden min-h-screen">
+  <script>
+    // 1. Metric Data Configuration with distinct formats & sub-metrics
+    const metricsData = [
+      {
+        id: 'admissions',
+        title: 'Admissions AY26',
+        subtitle: 'Volume breakdown by Sub-Metrics & Trend Line',
+        unitType: 'number', // Format: 10k, 20k
+        categories: ['Sub-Metric A', 'Sub-Metric B', 'Sub-Metric C', 'Sub-Metric D'],
+        target: [8000, 10000, 7000, 10000],
+        minMaxCap: [10000, 12000, 9000, 12000],
+        achieved: [7500, 11500, 6800, 9200],
+        trend: [93.7, 115.0, 97.1, 92.0] // Achievement % trend line
+      },
+      {
+        id: 'attendance',
+        title: 'Attendance',
+        subtitle: 'Student & Staff attendance % metrics',
+        unitType: 'percentage', // Format: 85%
+        categories: ['Primary', 'Secondary', 'Staff', 'Events'],
+        target: [85, 85, 90, 80],
+        minMaxCap: [95, 95, 98, 90],
+        achieved: [88, 82, 94, 85],
+        trend: [103.5, 96.4, 104.4, 106.2]
+      },
+      {
+        id: 'testPerformance',
+        title: 'Test Performance',
+        subtitle: 'Average test scores across subjects',
+        unitType: 'percentage',
+        categories: ['Math', 'Science', 'English', 'Social'],
+        target: [75, 70, 80, 75],
+        minMaxCap: [90, 85, 95, 90],
+        achieved: [78, 72, 85, 71],
+        trend: [104.0, 102.8, 106.2, 94.6]
+      },
+      {
+        id: 'emiCollection',
+        title: 'EMI Collection',
+        subtitle: 'Collection amount vs Target in thousands (₹)',
+        unitType: 'currency', // Format: ₹5k, ₹10k
+        categories: ['Q1 EMI', 'Q2 EMI', 'Q3 EMI', 'Q4 EMI'],
+        target: [1200, 1500, 1800, 2000],
+        minMaxCap: [1500, 1800, 2100, 2300],
+        achieved: [1150, 1600, 1750, 1900],
+        trend: [95.8, 106.6, 97.2, 95.0]
+      }
+    ];
 
-    <!-- ─── HEADER ─── -->
-    <header class="bg-gradient-to-r from-[#0f0c3a] via-[#1a175a] to-[#0f0c3a] text-white shadow-lg sticky top-0 z-40 border-b border-white/5">
-      <div class="max-w-[1560px] mx-auto px-4 md:px-6">
-        <!-- Top row -->
-        <div class="flex items-center justify-between py-3 md:py-4 gap-3">
-          <div class="flex items-center gap-3 min-w-0">
-            <div class="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-gradient-to-br from-indigo-400 to-fuchsia-500 flex items-center justify-center shadow-lg shrink-0">
-              <i class="fa-solid fa-chart-line text-white text-lg"></i>
-            </div>
-            <div class="min-w-0">
-              <h1 class="text-base md:text-xl font-extrabold tracking-tight truncate">VP Operations Command Center</h1>
-              <p class="text-[11px] md:text-xs text-indigo-200/80 truncate">Center performance, targets &amp; achievement analytics</p>
-            </div>
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <span id="lastUpdatedBadge" class="hidden md:flex text-xs bg-white/10 border border-white/15 px-3 py-1.5 rounded-full items-center gap-2 whitespace-nowrap">
-              <i class="fa-regular fa-clock"></i> <span>—</span>
-            </span>
-            <button id="refreshBtn" class="text-xs bg-white/10 hover:bg-white/20 border border-white/15 px-3 py-1.5 rounded-full flex items-center gap-2 transition-all active:scale-95">
-              <i class="fa-solid fa-rotate"></i> <span class="hidden sm:inline">Refresh</span>
-            </button>
-            <button id="themeToggle" class="text-xs bg-white/10 hover:bg-white/20 border border-white/15 w-8 h-8 rounded-full flex items-center justify-center transition-all">
-              <i class="fa-solid fa-moon"></i>
-            </button>
-          </div>
-        </div>
+    // Helper for formatting Y-axis labels cleanly
+    function formatValue(value, type) {
+      if (type === 'percentage') return value + '%';
+      if (type === 'currency') return '₹' + value.toLocaleString();
+      if (type === 'number' && value >= 1000) return (value / 1000) + 'k';
+      return value;
+    }
 
-        <!-- Filter bar -->
-        <div class="pb-3 md:pb-4">
-          <div class="glass rounded-xl px-3 md:px-4 py-3 flex flex-wrap gap-2 md:gap-3 items-end text-slate-700 shadow-sm">
-            <div>
-              <label class="block text-[10px] font-semibold uppercase tracking-wider text-indigo-600 mb-0.5">Date</label>
-              <select id="filterDate" class="rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[120px] shadow-sm focus:ring-2 focus:ring-indigo-300"></select>
-            </div>
-            <div>
-              <label class="block text-[10px] font-semibold uppercase tracking-wider text-indigo-600 mb-0.5">Region</label>
-              <select id="filterRegion" class="rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[120px] shadow-sm focus:ring-2 focus:ring-indigo-300"></select>
-            </div>
-            <div>
-              <label class="block text-[10px] font-semibold uppercase tracking-wider text-indigo-600 mb-0.5">Zone</label>
-              <select id="filterZone" class="rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[100px] shadow-sm focus:ring-2 focus:ring-indigo-300"></select>
-            </div>
-            <div>
-              <label class="block text-[10px] font-semibold uppercase tracking-wider text-indigo-600 mb-0.5">Center</label>
-              <select id="filterCenter" class="rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[170px] shadow-sm focus:ring-2 focus:ring-indigo-300"></select>
-            </div>
-            <div>
-              <label class="block text-[10px] font-semibold uppercase tracking-wider text-indigo-600 mb-0.5">Metric</label>
-              <select id="filterMetric" class="rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[170px] shadow-sm focus:ring-2 focus:ring-indigo-300"></select>
-            </div>
-            <button id="resetFiltersBtn" class="text-xs bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-1.5 rounded-lg transition-all active:scale-95 flex items-center gap-1">
-              <i class="fa-solid fa-rotate-left text-indigo-500"></i> Reset
-            </button>
-          </div>
-        </div>
+    // 2. Function to Render Dashboard Cards
+    function renderMetricCards() {
+      const grid = document.getElementById('metricsGrid');
 
-        <!-- Tab nav -->
-        <nav class="flex flex-wrap gap-1.5 pb-3">
-          <button class="tab-btn active px-3.5 md:px-5 py-2 rounded-lg text-xs md:text-sm font-semibold bg-white/10 text-white/80" data-tab="overview"><i class="fa-solid fa-gauge-high mr-1.5"></i>Overview</button>
-          <button class="tab-btn px-3.5 md:px-5 py-2 rounded-lg text-xs md:text-sm font-semibold bg-white/10 text-white/80" data-tab="zone"><i class="fa-solid fa-layer-group mr-1.5"></i>Zone Wise</button>
-          <button class="tab-btn px-3.5 md:px-5 py-2 rounded-lg text-xs md:text-sm font-semibold bg-white/10 text-white/80" data-tab="region"><i class="fa-solid fa-earth-americas mr-1.5"></i>Region Wise</button>
-          <button class="tab-btn px-3.5 md:px-5 py-2 rounded-lg text-xs md:text-sm font-semibold bg-white/10 text-white/80" data-tab="detail"><i class="fa-solid fa-table mr-1.5"></i>Detailed Data</button>
-        </nav>
-      </div>
-    </header>
-
-    <main class="max-w-[1560px] mx-auto px-4 md:px-6 py-5 md:py-7">
-
-      <!-- ═══════ TAB 1: OVERVIEW ═══════ -->
-      <section id="tab-overview" class="tab-panel active space-y-5">
-
-        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
-          <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-emerald-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">🏆 Top Center</p>
-            <p id="kpiTopCenter" class="text-sm font-bold mt-1 truncate">—</p>
-            <p id="kpiTopScore" class="text-emerald-600 font-bold text-lg mt-0.5">—</p>
-          </div>
-          <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-rose-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">📉 Lowest Center</p>
-            <p id="kpiBottomCenter" class="text-sm font-bold mt-1 truncate">—</p>
-            <p id="kpiBottomScore" class="text-rose-600 font-bold text-lg mt-0.5">—</p>
-          </div>
-          <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-indigo-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">📊 Avg Score</p>
-            <p id="kpiAvgScore" class="text-lg font-bold mt-1">—</p>
-            <p class="text-slate-400 text-[10px] mt-0.5">across selection</p>
-          </div>
-          <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-amber-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">🏛 Active Centers</p>
-            <p id="kpiCenterCount" class="text-lg font-bold mt-1">—</p>
-            <p class="text-slate-400 text-[10px] mt-0.5">in current selection</p>
-          </div>
-          <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-cyan-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">🌎 Best Region</p>
-            <p id="kpiBestRegion" class="text-sm font-bold mt-1 truncate">—</p>
-            <p id="kpiBestRegionScore" class="text-cyan-600 font-bold text-lg mt-0.5">—</p>
-          </div>
-          <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-purple-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">🔵 Best Zone</p>
-            <p id="kpiBestZone" class="text-sm font-bold mt-1 truncate">—</p>
-            <p id="kpiBestZoneScore" class="text-purple-600 font-bold text-lg mt-0.5">—</p>
-          </div>
-        </div>
-
-        <div id="insightsBar" class="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl border border-indigo-100 px-4 md:px-6 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs md:text-sm">
-          <span class="flex items-center gap-1.5 text-slate-500"><i class="fa-regular fa-lightbulb text-amber-500"></i> Insights</span>
-          <span id="insightTopRegion" class="font-medium text-slate-700"></span>
-          <span id="insightTopZone" class="font-medium text-slate-700"></span>
-          <span id="insightAboveTarget" class="font-medium text-slate-700"></span>
-        </div>
-
-        <!-- NEW: VISUALLY INTERACTIVE STACKED COLUMN CHART (TARGET vs CAP vs ACHIEVED) -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
-          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white text-xs shadow-md">
-                <i class="fa-solid fa-chart-column"></i>
+      metricsData.forEach(metric => {
+        // Build HTML for each card
+        const cardHTML = `
+          <div class="metric-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <h3>${metric.title}</h3>
+                <p>${metric.subtitle}</p>
               </div>
-              <div>
-                <h3 class="font-bold text-sm text-slate-800">Target vs. Min/Max Cap vs. Achieved Comparison</h3>
-                <p class="text-[11px] text-slate-400">Multi-level stacked metric performance view</p>
-              </div>
+              <span class="badge">${metric.unitType.toUpperCase()}</span>
             </div>
-            
-            <!-- Dynamic Drill Toggle -->
-            <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-semibold">
-              <button id="toggleMetricView" class="px-3 py-1 rounded-lg transition-all bg-white text-indigo-600 shadow-sm">
-                Metric Level
-              </button>
-              <button id="toggleSubMetricView" class="px-3 py-1 rounded-lg transition-all text-slate-500 hover:text-slate-800">
-                Sub-Metric Level
-              </button>
+            <div class="chart-container">
+              <canvas id="chart-${metric.id}"></canvas>
             </div>
           </div>
-          
-          <div class="relative" style="height:360px">
-            <canvas id="chartTargetVsAchieved"></canvas>
-          </div>
-        </div>
+        `;
+        grid.insertAdjacentHTML('beforeend', cardHTML);
 
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-ranking-star"></i></div>
-              <h3 class="font-semibold text-sm">Top 10 vs Bottom 10 Centers</h3>
-            </div>
-            <div class="relative" style="height:320px"><canvas id="chartTopBottom"></canvas></div>
-          </div>
-          <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-simple"></i></div>
-              <h3 class="font-semibold text-sm">Zone Performance Comparison</h3>
-            </div>
-            <div class="relative" style="height:320px"><canvas id="chartZoneComparison"></canvas></div>
-          </div>
-        </div>
+        // Build Chart.js Instance
+        const ctx = document.getElementById(`chart-${metric.id}`).getContext('2d');
+        
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: metric.categories,
+            datasets: [
+              {
+                type: 'line',
+                label: '% Trend',
+                data: metric.trend,
+                borderColor: '#10b981', // Green trend line
+                borderWidth: 2,
+                pointBackgroundColor: '#10b981',
+                pointRadius: 4,
+                yAxisID: 'yTrend',
+                tension: 0.3
+              },
+              {
+                type: 'bar',
+                label: 'Target',
+                data: metric.target,
+                backgroundColor: '#6366f1', // Blue
+                borderRadius: 4,
+                yAxisID: 'yMain'
+              },
+              {
+                type: 'bar',
+                label: 'Min / Max Cap',
+                data: metric.minMaxCap,
+                backgroundColor: '#f59e0b', // Yellow/Orange
+                borderRadius: 4,
+                yAxisID: 'yMain'
+              },
+              {
+                type: 'bar',
+                label: 'Achieved',
+                data: metric.achieved,
+                backgroundColor: '#f43f5e', // Pinkish Red
+                borderRadius: 4,
+                yAxisID: 'yMain'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+              mode: 'index',
+              intersect: false,
+            },
+            plugins: {
+              legend: {
+                position: 'top',
+                labels: { boxWidth: 12, usePointStyle: true }
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    let label = context.dataset.label || '';
+                    if (label) label += ': ';
+                    if (context.dataset.yAxisID === 'yTrend') {
+                      return label + context.raw + '% Achieved';
+                    }
+                    return label + formatValue(context.raw, metric.unitType);
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                grid: { display: false }
+              },
+              yMain: {
+                type: 'linear',
+                display: true,
+                position: 'left',
+                grid: { color: '#f1f5f9' },
+                ticks: {
+                  callback: function(value) {
+                    return formatValue(value, metric.unitType);
+                  }
+                }
+              },
+              yTrend: {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                grid: { drawOnChartArea: false },
+                ticks: {
+                  callback: function(value) {
+                    return value + '%';
+                  }
+                }
+              }
+            }
+          }
+        });
+      });
+    }
 
-        <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
-          <div class="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-border-all"></i></div>
-              <h3 class="font-semibold text-sm">Region × Metric Heatmap</h3>
-            </div>
-            <div class="overflow-auto rounded-xl">
-              <table class="heatmap w-full text-xs" id="heatmapTable"></table>
-            </div>
-          </div>
-          <div class="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5 flex flex-col" style="grid-column:span 2">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2">
-                <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-line"></i></div>
-                <h3 class="font-semibold text-sm">Historical Trend</h3>
-              </div>
-              <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">by filters</span>
-            </div>
-            <div class="relative flex-1" style="min-height:220px"><canvas id="chartTrend"></canvas></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ═══════ TAB 2: ZONE WISE ═══════ -->
-      <section id="tab-zone" class="tab-panel space-y-4">
-        <div class="flex items-center justify-between flex-wrap gap-2">
-          <p class="text-xs text-slate-500 flex items-center gap-1.5"><i class="fa-regular fa-calendar text-indigo-400"></i> Latest data snapshot: <span id="zoneLatestDateLabel" class="font-semibold text-slate-700"></span></p>
-          <span class="text-[11px] text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full"><i class="fa-solid fa-ranking-star mr-1 text-indigo-400"></i>Ranked within zone</span>
-        </div>
-        <div id="zoneGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
-      </section>
-
-      <!-- ═══════ TAB 3: REGION WISE ═══════ -->
-      <section id="tab-region" class="tab-panel space-y-4">
-        <div class="flex items-center justify-between flex-wrap gap-2">
-          <p class="text-xs text-slate-500 flex items-center gap-1.5"><i class="fa-regular fa-calendar text-indigo-400"></i> Latest data snapshot: <span id="regionLatestDateLabel" class="font-semibold text-slate-700"></span></p>
-          <span class="text-[11px] text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full"><i class="fa-solid fa-ranking-star mr-1 text-indigo-400"></i>Overall rank</span>
-        </div>
-        <div id="regionGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
-      </section>
-
-      <!-- ═══════ TAB 4: DETAILED DATA ═══════ -->
-      <section id="tab-detail" class="tab-panel flex flex-col" style="height:calc(100vh - 160px);margin:-1.75rem -1.5rem 0">
-        <!-- Toolbar -->
-        <div class="detail-toolbar">
-          <div class="info">
-            <i class="fa-regular fa-calendar" style="color:#4f46e5"></i>
-            <span id="latestDateLabel" class="font-semibold" style="color:#1e293b"></span>
-            <span style="color:#94a3b8">|</span>
-            <span id="rowCountLabel"></span>
-          </div>
-          <div class="actions">
-            <div class="search-wrap">
-              <i class="fa-solid fa-search"></i>
-              <input id="detailSearch" type="text" placeholder="Search center, region…">
-            </div>
-            <button id="exportCsvBtn" class="btn"><i class="fa-solid fa-download"></i> Export</button>
-          </div>
-        </div>
-        <!-- Grid area -->
-        <div class="flex-1 overflow-auto">
-          <table class="detail-grid" id="latestTable"></table>
-        </div>
-        <!-- Status bar -->
-        <div class="detail-statusbar">
-          <span class="stat">READY</span>
-          <span id="statusBarCount" class="muted"></span>
-          <span class="right"><i class="fa-regular fa-copyright"></i> VP Dashboard</span>
-        </div>
-      </section>
-
-    </main>
-
-    <footer class="text-center text-xs text-slate-400 py-6 border-t border-slate-100 mt-8 no-print">
-      <i class="fa-regular fa-copyright mr-1"></i> VP Operations Command Center &middot; Data sourced from published Google Sheet
-    </footer>
-  </div>
-
-  <script src="script.js"></script>
+    // Initialize Dashboard
+    document.addEventListener('DOMContentLoaded', renderMetricCards);
+  </script>
 </body>
 </html>
