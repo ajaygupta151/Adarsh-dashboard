@@ -106,32 +106,32 @@
 
         <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
           <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-emerald-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">&#127942; Top Center</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">🏆 Top Center</p>
             <p id="kpiTopCenter" class="text-sm font-bold mt-1 truncate">—</p>
             <p id="kpiTopScore" class="text-emerald-600 font-bold text-lg mt-0.5">—</p>
           </div>
           <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-rose-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">&#128201; Lowest Center</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">📉 Lowest Center</p>
             <p id="kpiBottomCenter" class="text-sm font-bold mt-1 truncate">—</p>
             <p id="kpiBottomScore" class="text-rose-600 font-bold text-lg mt-0.5">—</p>
           </div>
           <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-indigo-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">&#128202; Avg Score</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">📊 Avg Score</p>
             <p id="kpiAvgScore" class="text-lg font-bold mt-1">—</p>
             <p class="text-slate-400 text-[10px] mt-0.5">across selection</p>
           </div>
           <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-amber-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">&#127963; Active Centers</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">🏛 Active Centers</p>
             <p id="kpiCenterCount" class="text-lg font-bold mt-1">—</p>
             <p class="text-slate-400 text-[10px] mt-0.5">in current selection</p>
           </div>
           <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-cyan-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">&#127758; Best Region</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">🌎 Best Region</p>
             <p id="kpiBestRegion" class="text-sm font-bold mt-1 truncate">—</p>
             <p id="kpiBestRegionScore" class="text-cyan-600 font-bold text-lg mt-0.5">—</p>
           </div>
           <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-purple-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">&#128309; Best Zone</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">🔵 Best Zone</p>
             <p id="kpiBestZone" class="text-sm font-bold mt-1 truncate">—</p>
             <p id="kpiBestZoneScore" class="text-purple-600 font-bold text-lg mt-0.5">—</p>
           </div>
@@ -142,6 +142,35 @@
           <span id="insightTopRegion" class="font-medium text-slate-700"></span>
           <span id="insightTopZone" class="font-medium text-slate-700"></span>
           <span id="insightAboveTarget" class="font-medium text-slate-700"></span>
+        </div>
+
+        <!-- NEW: VISUALLY INTERACTIVE STACKED COLUMN CHART (TARGET vs CAP vs ACHIEVED) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white text-xs shadow-md">
+                <i class="fa-solid fa-chart-column"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-sm text-slate-800">Target vs. Min/Max Cap vs. Achieved Comparison</h3>
+                <p class="text-[11px] text-slate-400">Multi-level stacked metric performance view</p>
+              </div>
+            </div>
+            
+            <!-- Dynamic Drill Toggle -->
+            <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-semibold">
+              <button id="toggleMetricView" class="px-3 py-1 rounded-lg transition-all bg-white text-indigo-600 shadow-sm">
+                Metric Level
+              </button>
+              <button id="toggleSubMetricView" class="px-3 py-1 rounded-lg transition-all text-slate-500 hover:text-slate-800">
+                Sub-Metric Level
+              </button>
+            </div>
+          </div>
+          
+          <div class="relative" style="height:360px">
+            <canvas id="chartTargetVsAchieved"></canvas>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
