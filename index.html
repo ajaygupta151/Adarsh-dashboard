@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>VP Leaderboard & Operations Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <style>
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background:#f1f3f9; }
+    ::-webkit-scrollbar { height:8px; width:8px; }
+    ::-webkit-scrollbar-thumb { background:#94a3b8; border-radius:4px; }
+    ::-webkit-scrollbar-track { background:#e2e8f0; }
+    .tab-btn.active { background:#1e1b4b; color:#fff; box-shadow:0 4px 10px rgba(30,27,75,.35); }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+    .score-high { background:#d1fae5 !important; color:#065f46; font-weight:600; }
+    .score-mid  { background:#fef9c3 !important; color:#854d0e; font-weight:600; }
+    .score-low  { background:#fecaca !important; color:#991b1b; font-weight:600; }
+    .zone-banner { background:linear-gradient(135deg,#5b1a3a,#7c1f4a); }
+    .region-banner { background:linear-gradient(135deg,#111a4a,#241a63); }
+    .sticky-col { position:sticky; left:0; background:inherit; z-index:5; }
+    table.pivot th, table.pivot td { white-space:nowrap; }
+    #loadingOverlay { position:fixed; inset:0; background:#f1f3f9; z-index:50; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px;}
+    .spinner { width:46px; height:46px; border:5px solid #c7d2fe; border-top-color:#312e81; border-radius:50%; animation:spin 0.8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    select, input[type="text"] { outline:none; }
+  </style>
+</head>
+<body class="text-slate-800">
+
+  <!-- ============================= LOADING OVERLAY ============================= -->
+  <div id="loadingOverlay">
+    <div class="spinner"></div>
+    <p class="text-slate-500 font-medium">Loading dashboard data…</p>
+  </div>
+
+  <div id="app" class="hidden">
+
+    <!-- ============================= HEADER ============================= -->
+    <header class="bg-[#12103a] text-white shadow-lg sticky top-0 z-40">
+      <div class="max-w-[1500px] mx-auto px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-600 flex items-center justify-center">
+            <i class="fa-solid fa-chart-line"></i>
+          </div>
+          <div>
+            <h1 class="text-lg md:text-xl font-bold leading-tight">VP Leaderboard & Operations Dashboard</h1>
+            <p class="text-xs text-indigo-200">Center performance, targets & achievement analytics</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="lastUpdatedBadge" class="text-xs md:text-sm bg-white/10 border border-white/20 px-3 py-1.5 rounded-full flex items-center gap-2">
+            <i class="fa-regular fa-clock"></i> Last Updated on: —
+          </span>
+          <button id="refreshBtn" title="Reload latest data from the sheet" class="text-xs md:text-sm bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 rounded-full flex items-center gap-2">
+            <i class="fa-solid fa-rotate"></i> Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- ---------------------- GLOBAL FILTER BAR ---------------------- -->
+      <div class="bg-[#1b1854]/80 border-t border-white/10">
+        <div class="max-w-[1500px] mx-auto px-5 py-3 flex flex-wrap gap-3 items-end">
+          <div>
+            <label class="block text-[11px] text-indigo-200 mb-1">Date</label>
+            <select id="filterDate" class="rounded-lg bg-white/95 text-slate-800 text-sm px-3 py-1.5 min-w-[130px]"></select>
+          </div>
+          <div>
+            <label class="block text-[11px] text-indigo-200 mb-1">Region</label>
+            <select id="filterRegion" class="rounded-lg bg-white/95 text-slate-800 text-sm px-3 py-1.5 min-w-[130px]"></select>
+          </div>
+          <div>
+            <label class="block text-[11px] text-indigo-200 mb-1">Zone</label>
+            <select id="filterZone" class="rounded-lg bg-white/95 text-slate-800 text-sm px-3 py-1.5 min-w-[110px]"></select>
+          </div>
+          <div>
+            <label class="block text-[11px] text-indigo-200 mb-1">Center</label>
+            <select id="filterCenter" class="rounded-lg bg-white/95 text-slate-800 text-sm px-3 py-1.5 min-w-[190px]"></select>
+          </div>
+          <div>
+            <label class="block text-[11px] text-indigo-200 mb-1">Metric</label>
+            <select id="filterMetric" class="rounded-lg bg-white/95 text-slate-800 text-sm px-3 py-1.5 min-w-[190px]"></select>
+          </div>
+          <button id="resetFiltersBtn" class="text-xs bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 rounded-lg">
+            <i class="fa-solid fa-rotate-left"></i> Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- ---------------------- TAB NAV ---------------------- -->
+      <nav class="max-w-[1500px] mx-auto px-5 pb-3 flex flex-wrap gap-2">
+        <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-semibold bg-white/10" data-tab="overall"><i class="fa-solid fa-gauge-high mr-1.5"></i>Overall Dashboard</button>
+        <button class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-white/10" data-tab="zone"><i class="fa-solid fa-map mr-1.5"></i>Zone Wise</button>
+        <button class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-white/10" data-tab="region"><i class="fa-solid fa-earth-asia mr-1.5"></i>Region Wise</button>
+        <button class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-white/10" data-tab="latest"><i class="fa-solid fa-table mr-1.5"></i>Latest Data</button>
+      </nav>
+    </header>
+
+    <main class="max-w-[1500px] mx-auto px-5 py-6">
+
+      <!-- ============================= TAB 1: OVERALL DASHBOARD ============================= -->
+      <section id="tab-overall" class="tab-panel active space-y-6">
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div class="bg-white rounded-2xl shadow p-4 border-l-4 border-emerald-500">
+            <p class="text-xs text-slate-500 font-medium">Top Performing Center</p>
+            <p id="kpiTopCenter" class="text-lg font-bold mt-1 truncate">—</p>
+            <p id="kpiTopScore" class="text-emerald-600 font-semibold text-sm mt-0.5">—</p>
+          </div>
+          <div class="bg-white rounded-2xl shadow p-4 border-l-4 border-rose-500">
+            <p class="text-xs text-slate-500 font-medium">Lowest Performing Center</p>
+            <p id="kpiBottomCenter" class="text-lg font-bold mt-1 truncate">—</p>
+            <p id="kpiBottomScore" class="text-rose-600 font-semibold text-sm mt-0.5">—</p>
+          </div>
+          <div class="bg-white rounded-2xl shadow p-4 border-l-4 border-indigo-500">
+            <p class="text-xs text-slate-500 font-medium">Average Center Score</p>
+            <p id="kpiAvgScore" class="text-lg font-bold mt-1">—</p>
+            <p class="text-slate-400 text-xs mt-0.5">across current selection</p>
+          </div>
+          <div class="bg-white rounded-2xl shadow p-4 border-l-4 border-amber-500">
+            <p class="text-xs text-slate-500 font-medium">Total Active Centers</p>
+            <p id="kpiCenterCount" class="text-lg font-bold mt-1">—</p>
+            <p class="text-slate-400 text-xs mt-0.5">in current selection</p>
+          </div>
+        </div>
+
+        <!-- Charts row 1 -->
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div class="bg-white rounded-2xl shadow p-4">
+            <h3 class="font-semibold text-sm mb-2"><i class="fa-solid fa-ranking-star text-indigo-500 mr-1.5"></i>Top 10 vs Bottom 10 Centers</h3>
+            <canvas id="chartTopBottom" height="260"></canvas>
+          </div>
+          <div class="bg-white rounded-2xl shadow p-4">
+            <h3 class="font-semibold text-sm mb-2"><i class="fa-solid fa-layer-group text-indigo-500 mr-1.5"></i>Zone Performance Comparison (avg score)</h3>
+            <canvas id="chartZoneComparison" height="260"></canvas>
+          </div>
+        </div>
+
+        <!-- Charts row 2 -->
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div class="bg-white rounded-2xl shadow p-4">
+            <h3 class="font-semibold text-sm mb-2"><i class="fa-solid fa-table-cells text-indigo-500 mr-1.5"></i>Metric-wise Achievement — Region Heatmap</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs" id="heatmapTable"></table>
+            </div>
+          </div>
+          <div class="bg-white rounded-2xl shadow p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="font-semibold text-sm"><i class="fa-solid fa-chart-line text-indigo-500 mr-1.5"></i>Historical Trend — Achievement % over time</h3>
+              <span class="text-[11px] text-slate-400">Driven by Center &amp; Metric filters above</span>
+            </div>
+            <canvas id="chartTrend" height="260"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================= TAB 2: ZONE WISE ============================= -->
+      <section id="tab-zone" class="tab-panel space-y-4">
+        <p class="text-xs text-slate-500 -mt-1">Leaderboard reflects the latest data snapshot (<span id="zoneLatestDateLabel" class="font-semibold"></span>). Ranks are computed within each zone.</p>
+        <div id="zoneGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+      </section>
+
+      <!-- ============================= TAB 3: REGION WISE ============================= -->
+      <section id="tab-region" class="tab-panel space-y-4">
+        <p class="text-xs text-slate-500 -mt-1">Leaderboard reflects the latest data snapshot (<span id="regionLatestDateLabel" class="font-semibold"></span>). Ranks are computed within each region.</p>
+        <div id="regionGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+      </section>
+
+      <!-- ============================= TAB 4: LATEST DATA ============================= -->
+      <section id="tab-latest" class="tab-panel space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <p class="text-xs text-slate-500">Full target / achieved / achievement pivot for <span id="latestDateLabel" class="font-semibold"></span> — mirrors the source "Overall Dashboard" sheet layout.</p>
+          <input id="latestSearch" type="text" placeholder="Search center, region, business head…" class="text-sm border border-slate-300 rounded-lg px-3 py-1.5 w-72">
+        </div>
+        <div class="bg-white rounded-2xl shadow overflow-auto max-h-[75vh]">
+          <table class="pivot text-xs w-full border-collapse" id="latestTable"></table>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="text-center text-xs text-slate-400 py-6">
+      VP Leaderboard & Operations Dashboard · Data source: Google Sheet (published CSV)
+    </footer>
+  </div>
+
+<script>
+/* =============================================================================
+ *  CONFIG — EDIT THIS if your published CSV link ever changes
+ * ============================================================================= */
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQv78E-sNx7jHuv9RTfBJcw1-mGCXHijRtRbuCJut-T2A3ccncV3C_XXTe7iM1XEloaZ335wNrCh1cf/pub?gid=1425114708&single=true&output=csv';
+
+/* =============================================================================
+ *  COLUMN LAYOUT — must match the sheet's column order exactly (same as
+ *  the original Code.gs). If you add/remove/reorder columns in the sheet,
+ *  update these numbers (0 = first column).
+ * ============================================================================= */
+const COL = {
+  DATE: 0, CENTER: 1, REGION: 2, ZONE: 3, METRIC: 4, SUBMETRIC: 5,
+  TARGET: 6, CAP: 7, ACHIEVED: 8, METRIC_WEIGHT: 9, OVERALL_WEIGHT: 10,
+  METRIC_ACH_PCT: 11, OVERALL_ACH_PCT: 12, BUSINESS_HEAD: 13, CENTER_HEAD: 14
+};
+
+const METRIC_ORDER = [
+  'Admissions AY26',
+  'Attendance',
+  'EMI Collection',
+  'Test Performance and Attendance'
+];
+
+let DATA = null;
+const CHARTS = {};
+const DOM = {};
+
+document.addEventListener('DOMContentLoaded', () => {
+  cacheDOM();
+  DOM.refreshBtn.addEventListener('click', () => location.reload());
+  loadData();
+});
+
+function cacheDOM() {
+  DOM.loadingOverlay = document.getElementById('loadingOverlay');
+  DOM.app = document.getElementById('app');
+  DOM.lastUpdatedBadge = document.getElementById('lastUpdatedBadge');
+  DOM.refreshBtn = document.getElementById('refreshBtn');
+  DOM.zoneLatestDateLabel = document.getElementById('zoneLatestDateLabel');
+  DOM.regionLatestDateLabel = document.getElementById('regionLatestDateLabel');
+  DOM.latestDateLabel = document.getElementById('latestDateLabel');
+
+  DOM.filterDate = document.getElementById('filterDate');
+  DOM.filterRegion = document.getElementById('filterRegion');
+  DOM.filterZone = document.getElementById('filterZone');
+  DOM.filterCenter = document.getElementById('filterCenter');
+  DOM.filterMetric = document.getElementById('filterMetric');
+  DOM.resetFiltersBtn = document.getElementById('resetFiltersBtn');
+  DOM.latestSearch = document.getElementById('latestSearch');
+
+  DOM.kpiTopCenter = document.getElementById('kpiTopCenter');
+  DOM.kpiTopScore = document.getElementById('kpiTopScore');
+  DOM.kpiBottomCenter = document.getElementById('kpiBottomCenter');
+  DOM.kpiBottomScore = document.getElementById('kpiBottomScore');
+  DOM.kpiAvgScore = document.getElementById('kpiAvgScore');
+  DOM.kpiCenterCount = document.getElementById('kpiCenterCount');
+
+  DOM.heatmapTable = document.getElementById('heatmapTable');
+  DOM.zoneGrid = document.getElementById('zoneGrid');
+  DOM.regionGrid = document.getElementById('regionGrid');
+  DOM.latestTable = document.getElementById('latestTable');
+}
+
+function onLoadError(err) {
+  DOM.loadingOverlay.innerHTML =
+    `<div class="text-rose-600 text-center px-6 max-w-md">
+      <i class="fa-solid fa-triangle-exclamation text-2xl mb-2"></i>
+      <p class="font-semibold">Could not load dashboard data</p>
+      <p class="text-xs mt-1">${err && err.message ? err.message : err}</p>
+      <p class="text-xs mt-3 text-slate-500">Check that the CSV link in the page is still published and reachable, then reload.</p>
+    </div>`;
+}
+
+function onDataLoaded(payload) {
+  DATA = payload;
+  DOM.loadingOverlay.classList.add('hidden');
+  DOM.app.classList.remove('hidden');
+
+  const dateFormatted = DATA.meta.lastUpdatedFormatted;
+  DOM.lastUpdatedBadge.innerHTML = `<i class="fa-regular fa-clock"></i> Last Updated on: ${dateFormatted}`;
+  DOM.zoneLatestDateLabel.textContent = dateFormatted;
+  DOM.regionLatestDateLabel.textContent = dateFormatted;
+  DOM.latestDateLabel.textContent = dateFormatted;
+
+  populateFilters();
+  wireEvents();
+  renderAll();
+}
+
+/* =============================================================================
+ *  DATA LOADING — fetches the published CSV and parses it (replaces
+ *  google.script.run / getDashboardData() from Code.gs)
+ * ============================================================================= */
+function loadData() {
+  const bustUrl = CSV_URL + (CSV_URL.includes('?') ? '&' : '?') + '_cb=' + Date.now();
+  Papa.parse(bustUrl, {
+    download: true,
+    skipEmptyLines: true,
+    complete: function(results) {
+      try {
+        const allRows = results.data;
+        const dataRows = allRows.slice(1); // drop header row, same as Code.gs loop starting at i=1
+        const payload = buildDashboardData(dataRows);
+        onDataLoaded(payload);
+      } catch (e) {
+        console.error(e);
+        onLoadError(e);
+      }
+    },
+    error: function(err) {
+      onLoadError(err);
+    }
+  });
+}
+
+/* =============================================================================
+ *  BACKEND LOGIC — ported directly from Code.gs (same math & structure,
+ *  just no more SpreadsheetApp / CacheService, since there's no server here)
+ * ============================================================================= */
+
+function buildDashboardData(dataRows) {
+  const rawRows = buildRawRows_(dataRows);
+  if (rawRows.length === 0) {
+    throw new Error('No data rows found in the published sheet.');
+  }
+
+  const dates = uniqueSorted_(rawRows.map(r => r.date));
+  const latestDate = dates[dates.length - 1];
+
+  const meta = buildMeta_(rawRows, dates, latestDate);
+  const centerSummary = buildCenterSummary_(rawRows, latestDate);
+  computeRanks_(centerSummary, 'totalScore', 'overallRank');
+  computeZoneRanks_(centerSummary);
+
+  const zoneWise = groupBy_(centerSummary, 'zone');
+  const regionWise = groupBy_(centerSummary, 'region');
+  const latestTable = buildLatestTable_(rawRows, latestDate, centerSummary);
+
+  return { meta, rawRows, centerSummary, zoneWise, regionWise, latestTable };
+}
+
+function buildRawRows_(dataRows) {
+  const rows = [];
+  for (let i = 0; i < dataRows.length; i++) {
+    const r = dataRows[i];
+    if (!r || !r[COL.CENTER]) continue;
+
+    const dateStr = formatDateFromCsv_(r[COL.DATE]);
+    if (!dateStr) continue;
+
+    rows.push({
+      date: dateStr,
+      center: String(r[COL.CENTER] || '').trim(),
+      region: String(r[COL.REGION] || '').trim(),
+      zone: String(r[COL.ZONE] || '').trim(),
+      metric: String(r[COL.METRIC] || '').trim(),
+      subMetric: String(r[COL.SUBMETRIC] || '').trim(),
+      target: sanitizeValue_(r[COL.TARGET]),
+      cap: sanitizeValue_(r[COL.CAP]),
+      achieved: sanitizeValue_(r[COL.ACHIEVED]),
+      metricWeight: sanitizeValue_(r[COL.METRIC_WEIGHT]),
+      overallWeight: sanitizeValue_(r[COL.OVERALL_WEIGHT]),
+      metricAchPct: sanitizeValue_(r[COL.METRIC_ACH_PCT]),
+      overallAchPct: sanitizeValue_(r[COL.OVERALL_ACH_PCT]),
+      businessHead: String(r[COL.BUSINESS_HEAD] || '').trim(),
+      centerHead: String(r[COL.CENTER_HEAD] || '').trim()
+    });
+  }
+  return rows;
+}
+
+function sanitizeValue_(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const s = String(v).trim();
+  if (!s || s === '-' || s === '–' || s === 'NA' || s === 'N/A') return null;
+
+  if (s.includes('%')) {
+    const num = parseFloat(s.replace(/%/g, '').replace(/,/g, ''));
+    return isNaN(num) ? null : num;
+  }
+
+  const plain = parseFloat(s.replace(/,/g, ''));
+  if (!isNaN(plain) && /^-?[\d.,]+$/.test(s)) return plain;
+
+  return s;
+}
+
+// Google Sheets published CSVs usually export dates as M/D/YYYY (US format)
+// or YYYY-MM-DD. This handles both; if your dates look shifted, this is
+// the function to adjust.
+function formatDateFromCsv_(raw) {
+  if (raw === null || raw === undefined) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+
+  let d = new Date(s); // handles ISO (YYYY-MM-DD) and many other formats natively
+  if (isNaN(d.getTime())) {
+    const parts = s.split(/[\/\-]/).map(p => p.trim());
+    if (parts.length === 3) {
+      let [a, b, c] = parts.map(Number);
+      if (!isNaN(a) && !isNaN(b) && !isNaN(c)) {
+        const year = c < 100 ? 2000 + c : c;
+        d = new Date(year, a - 1, b); // assumes M/D/YYYY (Google Sheets default)
+      }
+    }
+  }
+  if (isNaN(d.getTime())) return s; // couldn't parse — keep raw string as a fallback
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function buildMeta_(rawRows, dates, latestDate) {
+  const regions = uniqueSorted_(rawRows.map(r => r.region));
+  const zones = uniqueSorted_(rawRows.map(r => r.zone)).sort(zoneComparator_);
+
+  const centersMap = {};
+  rawRows.forEach(r => {
+    if (!centersMap[r.center]) {
+      centersMap[r.center] = {
+        name: r.center,
+        region: r.region,
+        zone: r.zone,
+        businessHead: r.businessHead,
+        centerHead: r.centerHead
+      };
+    }
+  });
+
+  const centersMeta = Object.keys(centersMap).sort().map(k => centersMap[k]);
+
+  return {
+    lastUpdatedRaw: latestDate,
+    lastUpdatedFormatted: formatDisplayDate_(latestDate),
+    dates,
+    regions,
+    zones,
+    metrics: METRIC_ORDER,
+    centersMeta
+  };
+}
+
+function formatDisplayDate_(isoDate) {
+  const d = new Date(`${isoDate}T00:00:00`);
+  if (isNaN(d.getTime())) return isoDate;
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function zoneComparator_(a, b) {
+  const na = parseInt(String(a).replace(/\D/g, ''), 10) || 0;
+  const nb = parseInt(String(b).replace(/\D/g, ''), 10) || 0;
+  return na - nb;
+}
+
+function buildCenterSummary_(rawRows, latestDate) {
+  const latestRows = rawRows.filter(r => r.date === latestDate);
+  const byCenter = {};
+
+  latestRows.forEach(r => {
+    if (!byCenter[r.center]) {
+      byCenter[r.center] = {
+        center: r.center,
+        region: r.region,
+        zone: r.zone,
+        businessHead: r.businessHead,
+        centerHead: r.centerHead,
+        totalScore: 0,
+        overallRank: null,
+        zoneRank: null,
+        metricScores: METRIC_ORDER.reduce((acc, m) => { acc[m] = 0; return acc; }, {})
+      };
+    }
+    const c = byCenter[r.center];
+    c.totalScore += (r.overallAchPct || 0);
+    if (c.metricScores.hasOwnProperty(r.metric)) {
+      c.metricScores[r.metric] += (r.metricAchPct || 0);
+    }
+  });
+
+  return Object.keys(byCenter).map(k => {
+    const c = byCenter[k];
+    c.totalScore = round2_(c.totalScore);
+    METRIC_ORDER.forEach(m => { c.metricScores[m] = round2_(c.metricScores[m]); });
+    return c;
+  });
+}
+
+function computeRanks_(items, scoreField, rankField) {
+  const sorted = items.slice().sort((a, b) => b[scoreField] - a[scoreField]);
+  let rank = 0;
+  let prevScore = null;
+  for (let i = 0; i < sorted.length; i++) {
+    if (sorted[i][scoreField] !== prevScore) {
+      rank = i + 1;
+      prevScore = sorted[i][scoreField];
+    }
+    sorted[i][rankField] = rank;
+  }
+}
+
+function computeZoneRanks_(centerSummary) {
+  const byZone = groupBy_(centerSummary, 'zone');
+  Object.keys(byZone).forEach(zone => {
+    computeRanks_(byZone[zone], 'totalScore', 'zoneRank');
+  });
+}
+
+function groupBy_(centerSummary, key) {
+  const groups = {};
+  centerSummary.forEach(c => {
+    const k = c[key];
+    if (!groups[k]) groups[k] = [];
+    groups[k].push(c);
+  });
+  Object.keys(groups).forEach(k => {
+    groups[k].sort((a, b) => b.totalScore - a.totalScore);
+  });
+  return groups;
+}
+
+function buildLatestTable_(rawRows, latestDate, centerSummary) {
+  const latestRows = rawRows.filter(r => r.date === latestDate);
+  const byCenter = {};
+  latestRows.forEach(r => {
+    if (!byCenter[r.center]) byCenter[r.center] = {};
+    byCenter[r.center][`${r.metric}||${r.subMetric}`] = r;
+  });
+
+  const summaryByCenter = centerSummary.reduce((acc, c) => { acc[c.center] = c; return acc; }, {});
+
+  const table = Object.keys(byCenter).map(centerName => {
+    const rows = byCenter[centerName];
+    const c2 = rows['Admissions AY26||C2'] || {};
+    const das = rows['Attendance||DAS'] || {};
+    const inactivity = rows['Attendance||Inactivity'] || {};
+    const emi4 = rows['EMI Collection||4th EMI'] || {};
+    const emi1 = rows['EMI Collection||1st EMI (Sep-Jun)'] || {};
+    const emi2 = rows['EMI Collection||2nd EMI'] || {};
+    const result = rows['Test Performance and Attendance||Result'] || {};
+    const tpaAttendance = rows['Test Performance and Attendance||Attendance'] || {};
+    const summary = summaryByCenter[centerName] || {};
+
+    return {
+      region: das.region || c2.region || '',
+      center: centerName,
+      businessHead: das.businessHead || c2.businessHead || '',
+      centerHead: das.centerHead || c2.centerHead || '',
+      zone: das.zone || c2.zone || '',
+
+      admissionsTarget: c2.target ?? null,
+      admissionsMinCap: c2.cap ?? null,
+      dasTarget: das.target ?? null,
+      dasMinCap: das.cap ?? null,
+      inactivityMaxCap: inactivity.cap ?? null,
+      emi4Target: emi4.target ?? null,
+      emi4MinCap: emi4.cap ?? null,
+      emi1Target: emi1.target ?? null,
+      emi1MinCap: emi1.cap ?? null,
+      emi2Target: emi2.target ?? null,
+      emi2MinCap: emi2.cap ?? null,
+      resultTarget: result.target ?? null,
+      tpaAttendanceTarget: tpaAttendance.target ?? null,
+
+      admissionsAchieved: c2.achieved ?? null,
+      dasAchieved: das.achieved ?? null,
+      inactivityAchieved: inactivity.achieved ?? null,
+      emi4Achieved: emi4.achieved ?? null,
+      emi1Achieved: emi1.achieved ?? null,
+      emi2Achieved: emi2.achieved ?? null,
+      resultAchieved: result.achieved ?? null,
+      tpaAttendanceAchieved: tpaAttendance.achieved ?? null,
+
+      admissionsAchPct: summary.metricScores ? summary.metricScores['Admissions AY26'] : null,
+      attendanceAchPct: summary.metricScores ? summary.metricScores['Attendance'] : null,
+      emiAchPct: summary.metricScores ? summary.metricScores['EMI Collection'] : null,
+      tpaAchPct: summary.metricScores ? summary.metricScores['Test Performance and Attendance'] : null,
+
+      scorePct: summary.totalScore ?? null,
+      overallRank: summary.overallRank ?? null,
+      zonalRank: summary.zoneRank ?? null
+    };
+  });
+
+  return table.sort((a, b) => (a.overallRank || 9999) - (b.overallRank || 9999));
+}
+
+function uniqueSorted_(arr) {
+  const seen = new Set();
+  const out = [];
+  arr.forEach(v => {
+    if (v !== null && v !== undefined && v !== '' && !seen.has(v)) {
+      seen.add(v);
+      out.push(v);
+    }
+  });
+  return out.sort();
+}
+
+function round2_(n) {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+/* =============================================================================
+ *  FRONT-END APPLICATION LOGIC — unchanged from the original Index.html
+ * ============================================================================= */
+
+function populateFilters() {
+  fillSelect(DOM.filterDate, DATA.meta.dates.map(d => ({ value: d, label: d })), DATA.meta.lastUpdatedRaw);
+  fillSelect(DOM.filterRegion, [{ value: 'All', label: 'All Regions' }, ...DATA.meta.regions.map(r => ({ value: r, label: r }))], 'All');
+  fillSelect(DOM.filterZone, [{ value: 'All', label: 'All Zones' }, ...DATA.meta.zones.map(z => ({ value: z, label: z }))], 'All');
+  fillSelect(DOM.filterMetric, [{ value: 'All', label: 'All Metrics' }, ...DATA.meta.metrics.map(m => ({ value: m, label: m }))], 'All');
+  populateCenterFilter();
+}
+
+function populateCenterFilter() {
+  const region = DOM.filterRegion.value || 'All';
+  const zone = DOM.filterZone.value || 'All';
+  const centers = DATA.meta.centersMeta
+    .filter(c => (region === 'All' || c.region === region) && (zone === 'All' || c.zone === zone))
+    .map(c => ({ value: c.name, label: c.name }));
+
+  const current = DOM.filterCenter.value;
+  fillSelect(DOM.filterCenter, [{ value: 'All', label: 'All Centers' }, ...centers], centers.some(c => c.value === current) ? current : 'All');
+}
+
+function fillSelect(el, options, selectedValue) {
+  el.innerHTML = options.map(opt =>
+    `<option value="${opt.value}" ${opt.value === selectedValue ? 'selected' : ''}>${opt.label}</option>`
+  ).join('');
+}
+
+function wireEvents() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+    });
+  });
+
+  DOM.filterRegion.addEventListener('change', () => { populateCenterFilter(); renderAll(); });
+  DOM.filterZone.addEventListener('change', () => { populateCenterFilter(); renderAll(); });
+  DOM.filterDate.addEventListener('change', renderAll);
+  DOM.filterCenter.addEventListener('change', renderAll);
+  DOM.filterMetric.addEventListener('change', renderAll);
+
+  DOM.resetFiltersBtn.addEventListener('click', () => {
+    fillSelect(DOM.filterDate, DATA.meta.dates.map(d => ({ value: d, label: d })), DATA.meta.lastUpdatedRaw);
+    DOM.filterRegion.value = 'All';
+    DOM.filterZone.value = 'All';
+    DOM.filterMetric.value = 'All';
+    populateCenterFilter();
+    DOM.filterCenter.value = 'All';
+    DOM.latestSearch.value = '';
+    renderAll();
+  });
+
+  DOM.latestSearch.addEventListener('input', debounce(renderLatestTable, 150));
+}
+
+function getFilters() {
+  return {
+    date: DOM.filterDate.value,
+    region: DOM.filterRegion.value,
+    zone: DOM.filterZone.value,
+    center: DOM.filterCenter.value,
+    metric: DOM.filterMetric.value
+  };
+}
+
+function computeScoresForDate(date, f) {
+  const rows = DATA.rawRows.filter(r =>
+    r.date === date &&
+    (f.region === 'All' || r.region === f.region) &&
+    (f.zone === 'All' || r.zone === f.zone) &&
+    (f.center === 'All' || r.center === f.center)
+  );
+
+  const byCenter = {};
+  rows.forEach(r => {
+    if (!byCenter[r.center]) {
+      byCenter[r.center] = { center: r.center, region: r.region, zone: r.zone, score: 0 };
+    }
+    byCenter[r.center].score += (r.overallAchPct || 0);
+  });
+
+  return Object.values(byCenter).map(c => {
+    c.score = Math.round(c.score * 100) / 100;
+    return c;
+  });
+}
+
+function filteredCenterSummary(f) {
+  return DATA.centerSummary.filter(c =>
+    (f.region === 'All' || c.region === f.region) &&
+    (f.zone === 'All' || c.zone === f.zone) &&
+    (f.center === 'All' || c.center === f.center)
+  );
+}
+
+function renderAll() {
+  const f = getFilters();
+  renderKpis(f);
+  renderTopBottomChart(f);
+  renderZoneComparisonChart(f);
+  renderHeatmap(f);
+  renderTrendChart(f);
+  renderZoneTab(f);
+  renderRegionTab(f);
+  renderLatestTable();
+}
+
+function renderKpis(f) {
+  const scores = computeScoresForDate(f.date, f);
+  if (scores.length === 0) {
+    DOM.kpiTopCenter.textContent = '—';
+    DOM.kpiTopScore.textContent = '—';
+    DOM.kpiBottomCenter.textContent = '—';
+    DOM.kpiBottomScore.textContent = '—';
+    DOM.kpiAvgScore.textContent = '—';
+    DOM.kpiCenterCount.textContent = '0';
+    return;
+  }
+  const sorted = scores.slice().sort((a, b) => b.score - a.score);
+  const top = sorted[0];
+  const bottom = sorted[sorted.length - 1];
+  const avg = scores.reduce((s, c) => s + c.score, 0) / scores.length;
+
+  DOM.kpiTopCenter.textContent = top.center;
+  DOM.kpiTopScore.textContent = `${top.score.toFixed(2)}%`;
+  DOM.kpiBottomCenter.textContent = bottom.center;
+  DOM.kpiBottomScore.textContent = `${bottom.score.toFixed(2)}%`;
+  DOM.kpiAvgScore.textContent = `${avg.toFixed(2)}%`;
+  DOM.kpiCenterCount.textContent = scores.length;
+}
+
+function upsertChart(key, ctxId, config) {
+  if (CHARTS[key]) CHARTS[key].destroy();
+  const ctx = document.getElementById(ctxId).getContext('2d');
+  CHARTS[key] = new Chart(ctx, config);
+}
+
+function renderTopBottomChart(f) {
+  const scores = computeScoresForDate(f.date, f).sort((a, b) => b.score - a.score);
+  const top10 = scores.slice(0, 10);
+  const bottom10 = scores.slice(-10).reverse();
+  const labels = top10.map(c => c.center).concat(bottom10.map(c => c.center));
+  const values = top10.map(c => c.score).concat(bottom10.map(c => c.score));
+  const colors = top10.map(() => '#10b981').concat(bottom10.map(() => '#f43f5e'));
+
+  upsertChart('topBottom', 'chartTopBottom', {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Score %', data: values, backgroundColor: colors, borderRadius: 4 }] },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.parsed.x.toFixed(2)}%` } } },
+      scales: { x: { ticks: { callback: v => `${v}%` } } }
+    }
+  });
+}
+
+function renderZoneComparisonChart(f) {
+  const scores = computeScoresForDate(f.date, f);
+  const byZone = {};
+  scores.forEach(c => {
+    if (!byZone[c.zone]) byZone[c.zone] = [];
+    byZone[c.zone].push(c.score);
+  });
+
+  const zones = Object.keys(byZone).sort((a, b) =>
+    (parseInt(a.replace(/\D/g, ''), 10) || 0) - (parseInt(b.replace(/\D/g, ''), 10) || 0)
+  );
+  const avgs = zones.map(z => {
+    const arr = byZone[z];
+    return arr.reduce((s, v) => s + v, 0) / arr.length;
+  });
+
+  upsertChart('zoneComparison', 'chartZoneComparison', {
+    type: 'bar',
+    data: { labels: zones, datasets: [{ label: 'Avg Score %', data: avgs.map(v => Math.round(v * 100) / 100), backgroundColor: '#6366f1', borderRadius: 6 }] },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.parsed.y.toFixed(2)}%` } } },
+      scales: { y: { ticks: { callback: v => `${v}%` } } }
+    }
+  });
+}
+
+function renderHeatmap(f) {
+  const rows = DATA.rawRows.filter(r =>
+    r.date === f.date &&
+    (f.region === 'All' || r.region === f.region) &&
+    (f.zone === 'All' || r.zone === f.zone) &&
+    (f.center === 'All' || r.center === f.center)
+  );
+
+  const regions = uniq(rows.map(r => r.region)).sort();
+  const metrics = DATA.meta.metrics;
+
+  const sums = {};
+  const centerSets = {};
+  rows.forEach(r => {
+    const key = `${r.region}||${r.metric}`;
+    sums[key] = (sums[key] || 0) + (r.metricAchPct || 0);
+    centerSets[r.region] = centerSets[r.region] || {};
+    centerSets[r.region][r.center] = true;
+  });
+
+  let html = '<thead><tr><th class="text-left p-2 bg-slate-100 sticky left-0">Region</th>';
+  metrics.forEach(m => { html += `<th class="p-2 bg-slate-100 text-center">${m}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  regions.forEach(region => {
+    const centerCount = Object.keys(centerSets[region] || {}).length || 1;
+    html += `<tr><td class="p-2 font-semibold bg-slate-50 sticky left-0 border-t">${region}</td>`;
+    metrics.forEach(m => {
+      const avg = (sums[`${region}||${m}`] || 0) / centerCount;
+      html += `<td class="p-2 text-center border-t ${heatClass(avg)}">${avg.toFixed(1)}%</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  DOM.heatmapTable.innerHTML = html;
+}
+
+function heatClass(v) {
+  if (v >= 60) return 'score-high';
+  if (v >= 30) return 'score-mid';
+  return 'score-low';
+}
+
+function renderTrendChart(f) {
+  const metric = f.metric === 'All' ? null : f.metric;
+  const center = f.center === 'All' ? null : f.center;
+
+  const rows = DATA.rawRows.filter(r =>
+    (f.region === 'All' || r.region === f.region) &&
+    (f.zone === 'All' || r.zone === f.zone) &&
+    (!center || r.center === center) &&
+    (!metric || r.metric === metric)
+  );
+
+  const byDate = {};
+  DATA.meta.dates.forEach(d => { byDate[d] = { sum: 0, centers: {} }; });
+  rows.forEach(r => {
+    const bucket = byDate[r.date];
+    if (!bucket) return;
+    bucket.sum += (r.metricAchPct || 0);
+    bucket.centers[r.center] = (bucket.centers[r.center] || 0) + 1;
+  });
+
+  const values = DATA.meta.dates.map(d => {
+    const bucket = byDate[d];
+    const centerCount = Object.keys(bucket.centers).length || 1;
+    return Math.round((bucket.sum / centerCount) * 100) / 100;
+  });
+
+  const label = `${center || 'All Centers'} — ${metric || 'All Metrics (avg)'}`;
+
+  upsertChart('trend', 'chartTrend', {
+    type: 'line',
+    data: {
+      labels: DATA.meta.dates,
+      datasets: [{
+        label,
+        data: values,
+        borderColor: '#4f46e5',
+        backgroundColor: 'rgba(79,70,229,0.12)',
+        fill: true,
+        tension: 0.35,
+        pointRadius: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { tooltip: { callbacks: { label: c => `${c.parsed.y.toFixed(2)}%` } } },
+      scales: { y: { ticks: { callback: v => `${v}%` } } }
+    }
+  });
+}
+
+function renderZoneTab(f) {
+  const list = filteredCenterSummary(f);
+  const byZone = {};
+  list.forEach(c => {
+    if (!byZone[c.zone]) byZone[c.zone] = [];
+    byZone[c.zone].push(c);
+  });
+
+  const zones = Object.keys(byZone).sort((a, b) =>
+    (parseInt(a.replace(/\D/g, ''), 10) || 0) - (parseInt(b.replace(/\D/g, ''), 10) || 0)
+  );
+
+  DOM.zoneGrid.innerHTML = '';
+  if (zones.length === 0) {
+    DOM.zoneGrid.innerHTML = '<p class="text-sm text-slate-400">No centers match the current filters.</p>';
+    return;
+  }
+
+  zones.forEach(zone => {
+    const centers = byZone[zone].slice().sort((a, b) => a.zoneRank - b.zoneRank);
+    const card = document.createElement('div');
+    card.className = 'bg-white rounded-2xl shadow overflow-hidden';
+
+    const rowsHtml = centers.map(c =>
+      `<tr class="border-t">
+        <td class="p-2">${c.center}</td>
+        <td class="p-2 text-center ${scoreClass(c.totalScore)}">${c.totalScore.toFixed(2)}%</td>
+        <td class="p-2 text-center font-semibold">${c.zoneRank}</td>
+      </tr>`
+    ).join('');
+
+    card.innerHTML =
+      `<div class="zone-banner text-white text-center py-2.5 font-bold tracking-wide">${zone}</div>
+      <div class="overflow-y-auto max-h-80">
+        <table class="w-full text-xs">
+          <thead><tr class="bg-slate-50 text-slate-500"><th class="p-2 text-left">Center Name</th><th class="p-2">Score</th><th class="p-2">Rank</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>`;
+    DOM.zoneGrid.appendChild(card);
+  });
+}
+
+function renderRegionTab(f) {
+  const list = filteredCenterSummary(f);
+  const byRegion = {};
+  list.forEach(c => {
+    if (!byRegion[c.region]) byRegion[c.region] = [];
+    byRegion[c.region].push(c);
+  });
+
+  const regions = Object.keys(byRegion).sort();
+
+  DOM.regionGrid.innerHTML = '';
+  if (regions.length === 0) {
+    DOM.regionGrid.innerHTML = '<p class="text-sm text-slate-400">No centers match the current filters.</p>';
+    return;
+  }
+
+  regions.forEach(region => {
+    const centers = byRegion[region].slice().sort((a, b) => a.overallRank - b.overallRank);
+    const card = document.createElement('div');
+    card.className = 'bg-white rounded-2xl shadow overflow-hidden';
+
+    const rowsHtml = centers.map(c =>
+      `<tr class="border-t">
+        <td class="p-2">${c.center}</td>
+        <td class="p-2 text-center ${scoreClass(c.totalScore)}">${c.totalScore.toFixed(2)}%</td>
+        <td class="p-2 text-center">${c.zone}</td>
+        <td class="p-2 text-center font-semibold">${c.overallRank}</td>
+      </tr>`
+    ).join('');
+
+    card.innerHTML =
+      `<div class="region-banner text-white text-center py-2.5 font-bold tracking-wide">${region}</div>
+      <div class="overflow-y-auto max-h-80">
+        <table class="w-full text-xs">
+          <thead><tr class="bg-slate-50 text-slate-500"><th class="p-2 text-left">Center Name</th><th class="p-2">Score</th><th class="p-2">Zone</th><th class="p-2">Rank</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>`;
+    DOM.regionGrid.appendChild(card);
+  });
+}
+
+function scoreClass(v) {
+  if (v > 60) return 'score-high';
+  if (v >= 30) return 'score-mid';
+  return 'score-low';
+}
+
+function renderLatestTable() {
+  const f = getFilters();
+  const search = (DOM.latestSearch.value || '').toLowerCase().trim();
+
+  const rows = DATA.latestTable.filter(r => {
+    const matchesFilters = (f.region === 'All' || r.region === f.region) &&
+      (f.zone === 'All' || r.zone === f.zone) &&
+      (f.center === 'All' || r.center === f.center);
+    if (!matchesFilters) return false;
+    if (!search) return true;
+    return `${r.center} ${r.region} ${r.businessHead} ${r.centerHead}`.toLowerCase().includes(search);
+  });
+
+  const head =
+    `<thead>
+      <tr class="bg-[#12103a] text-white">
+        <th class="p-2 sticky left-0 bg-[#12103a]" rowspan="3">Region</th>
+        <th class="p-2 sticky left-0 bg-[#12103a]" rowspan="3">Center Name</th>
+        <th class="p-2" rowspan="3">Business Head</th>
+        <th class="p-2" rowspan="3">Center Head</th>
+        <th class="p-2" rowspan="3">Zone</th>
+        <th class="p-2 bg-rose-800" colspan="2">Admissions AY26</th>
+        <th class="p-2 bg-indigo-800" colspan="3">Attendance</th>
+        <th class="p-2 bg-teal-800" colspan="6">EMI Collection</th>
+        <th class="p-2 bg-amber-700" colspan="2">Test Performance</th>
+        <th class="p-2 bg-emerald-800" colspan="4">Achievement %</th>
+        <th class="p-2 bg-slate-700" rowspan="3">SCORE %</th>
+        <th class="p-2 bg-slate-700" rowspan="3">Overall Rank</th>
+        <th class="p-2 bg-slate-700" rowspan="3">Zonal Rank</th>
+      </tr>
+      <tr class="bg-[#1b1854] text-white text-[11px]">
+        <th class="p-1" colspan="2">Target / Min Cap</th>
+        <th class="p-1" colspan="2">DAS</th><th class="p-1">Inactivity</th>
+        <th class="p-1" colspan="2">4th EMI</th><th class="p-1" colspan="2">1st EMI</th><th class="p-1" colspan="2">2nd EMI</th>
+        <th class="p-1">Result</th><th class="p-1">Attendance</th>
+        <th class="p-1">Admissions</th><th class="p-1">Attendance</th><th class="p-1">EMI</th><th class="p-1">TPA</th>
+      </tr>
+      <tr class="bg-slate-100 text-[11px] text-slate-600">
+        <th class="p-1">Target</th><th class="p-1">Min Cap</th>
+        <th class="p-1">Target</th><th class="p-1">Min Cap</th><th class="p-1">Max Cap</th>
+        <th class="p-1">Target</th><th class="p-1">Min Cap</th><th class="p-1">Target</th><th class="p-1">Min Cap</th><th class="p-1">Target</th><th class="p-1">Min Cap</th>
+        <th class="p-1">Target</th><th class="p-1">Target</th>
+        <th class="p-1">Ach %</th><th class="p-1">Ach %</th><th class="p-1">Ach %</th><th class="p-1">Ach %</th>
+      </tr>
+    </thead>`;
+
+  const body = `<tbody>${rows.map(r =>
+    `<tr class="border-t hover:bg-slate-50">
+      ${td(r.region, 'sticky-col bg-white font-medium')}
+      ${td(r.center, 'sticky-col bg-white font-medium text-left')}
+      ${td(r.businessHead)}${td(r.centerHead)}${td(r.zone)}
+      ${pct(r.admissionsTarget, true)}${pct(r.admissionsMinCap, true)}
+      ${pct(r.dasTarget)}${pct(r.dasMinCap)}${pct(r.inactivityMaxCap)}
+      ${pct(r.emi4Target)}${pct(r.emi4MinCap)}${pct(r.emi1Target)}${pct(r.emi1MinCap)}${pct(r.emi2Target)}${pct(r.emi2MinCap)}
+      ${pct(r.resultTarget)}${pct(r.tpaAttendanceTarget)}
+      ${pctCell(r.admissionsAchPct)}${pctCell(r.attendanceAchPct)}${pctCell(r.emiAchPct)}${pctCell(r.tpaAchPct)}
+      <td class="p-2 text-center font-bold ${scoreClass(r.scorePct || 0)}">${r.scorePct != null ? r.scorePct.toFixed(2) + '%' : '—'}</td>
+      <td class="p-2 text-center font-semibold">${r.overallRank ?? '—'}</td>
+      <td class="p-2 text-center font-semibold">${r.zonalRank ?? '—'}</td>
+    </tr>`
+  ).join('')}</tbody>`;
+
+  DOM.latestTable.innerHTML = head + body;
+
+  function td(val, cls = '') { return `<td class="p-2 text-center ${cls}">${val || '—'}</td>`; }
+  function pct(val, isCount) { return `<td class="p-2 text-center text-slate-600">${val != null ? (isCount ? val : val.toFixed(2) + '%') : '—'}</td>`; }
+  function pctCell(val) { return `<td class="p-2 text-center ${val != null ? heatClass(val) : ''}">${val != null ? val.toFixed(2) + '%' : '—'}</td>`; }
+}
+
+function uniq(arr) {
+  return Array.from(new Set(arr.filter(Boolean)));
+}
+
+function debounce(fn, wait) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => fn.apply(this, args), wait);
+  };
+}
+</script>
+</body>
+</html>
