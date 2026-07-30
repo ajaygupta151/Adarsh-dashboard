@@ -284,14 +284,25 @@ function onDataLoaded(payload) {
  * ============================================================================= */
 function loadData() {
   const bustUrl = CSV_URL + (CSV_URL.includes('?') ? '&' : '?') + '_cb=' + Date.now();
-  // Google's published-CSV endpoint doesn't send CORS headers, so a page on a
-  // different domain (like GitHub Pages) can't read it directly with fetch().
-  // Routing through a small public proxy adds those headers for us.
-  const proxiedUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(bustUrl);
+  // Try a direct fetch first, then fall back through a few public proxies in
+  // case one is blocked, down, or rate-limited on a given network.
+  const candidates = [
+    bustUrl,
+    'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(bustUrl),
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent(bustUrl),
+    'https://corsproxy.io/?url=' + encodeURIComponent(bustUrl)
+  ];
+  tryLoadSequential(candidates, 0);
+}
 
-  fetchWithTimeout(proxiedUrl, 20000)
+function tryLoadSequential(urls, idx) {
+  if (idx >= urls.length) {
+    onLoadError(new Error('Could not reach the data source through any available method. Please check your internet connection, or confirm the sheet is still published to the web.'));
+    return;
+  }
+  fetchWithTimeout(urls[idx], 15000)
     .then(res => {
-      if (!res.ok) throw new Error('Network response was not OK (status ' + res.status + ').');
+      if (!res.ok) throw new Error('Server responded with status ' + res.status);
       return res.text();
     })
     .then(csvText => {
@@ -301,8 +312,8 @@ function loadData() {
       onDataLoaded(payload);
     })
     .catch(err => {
-      console.error(err);
-      onLoadError(err);
+      console.warn('Data load attempt failed for', urls[idx], err);
+      tryLoadSequential(urls, idx + 1);
     });
 }
 
@@ -312,7 +323,7 @@ function fetchWithTimeout(url, timeoutMs) {
   return fetch(url, { signal: controller.signal })
     .catch(err => {
       if (err.name === 'AbortError') {
-        throw new Error('The request took too long and timed out. Please try refreshing.');
+        throw new Error('Request timed out.');
       }
       throw err;
     })
@@ -391,31 +402,35 @@ function sanitizeValue_(v) {
   return s;
 }
 
-// Google Sheets published CSVs usually export dates as M/D/YYYY (US format)
-// or YYYY-MM-DD. This handles both; if your dates look shifted, this is
-// the function to adjust.
+// This sheet's dates are in dd-mm-yyyy format, so that's parsed first.
+// Native Date parsing (handles ISO yyyy-mm-dd etc.) is used as a fallback.
 function formatDateFromCsv_(raw) {
   if (raw === null || raw === undefined) return null;
   const s = String(raw).trim();
   if (!s) return null;
 
-  let d = new Date(s); // handles ISO (YYYY-MM-DD) and many other formats natively
-  if (isNaN(d.getTime())) {
-    const parts = s.split(/[\/\-]/).map(p => p.trim());
-    if (parts.length === 3) {
-      let [a, b, c] = parts.map(Number);
-      if (!isNaN(a) && !isNaN(b) && !isNaN(c)) {
-        const year = c < 100 ? 2000 + c : c;
-        d = new Date(year, a - 1, b); // assumes M/D/YYYY (Google Sheets default)
-      }
+  const parts = s.split(/[\/\-]/).map(p => p.trim());
+  if (parts.length === 3 && parts.every(p => /^\d+$/.test(p))) {
+    let [d, m, y] = parts.map(Number);
+    if (y < 100) y += 2000;
+    const dt = new Date(y, m - 1, d);
+    if (!isNaN(dt.getTime())) {
+      const yyyy = dt.getFullYear();
+      const mm = String(dt.getMonth() + 1).padStart(2, '0');
+      const dd = String(dt.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
     }
   }
-  if (isNaN(d.getTime())) return s; // couldn't parse — keep raw string as a fallback
 
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+  const native = new Date(s);
+  if (!isNaN(native.getTime())) {
+    const yyyy = native.getFullYear();
+    const mm = String(native.getMonth() + 1).padStart(2, '0');
+    const dd = String(native.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return s; // couldn't parse — keep raw string as a fallback
 }
 
 function buildMeta_(rawRows, dates, latestDate) {
