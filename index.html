@@ -161,6 +161,22 @@
           </div>
         </div>
 
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+          <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-400 to-blue-500 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-column"></i></div>
+              <h3 class="font-semibold text-sm">Target vs Min/Max Cap vs Achieved <span class="text-slate-400 font-normal">(by Sub-metric)</span></h3>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">avg of current selection</span>
+              <button id="toggleStackedBtn" class="text-[11px] bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2.5 py-1 rounded-lg transition-all active:scale-95 flex items-center gap-1">
+                <i class="fa-solid fa-layer-group text-indigo-500"></i> <span id="toggleStackedLabel">Grouped</span>
+              </button>
+            </div>
+          </div>
+          <div class="relative" style="height:340px"><canvas id="chartTargetCapAchieved"></canvas></div>
+        </div>
+
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
           <div class="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
             <div class="flex items-center gap-2 mb-3">
