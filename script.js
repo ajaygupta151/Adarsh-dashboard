@@ -737,22 +737,16 @@ function renderLatestTable() {
   // Only 4 frozen: #, Region, Center, Zone
   const ID_COLS = ['#','Region','Center','Zone'];
 
-  // Target columns (13)
-  const tgtFields = [
-    {group:'Targets',metric:'Admissions AY26',sub:'C2',field:'Target',key:'c2Target'},
-    {group:'Targets',metric:'Admissions AY26',sub:'C2',field:'Min Cap.',key:'c2Cap'},
-    {group:'Targets',metric:'Attendance',sub:'DAS',field:'Target',key:'dasTarget'},
-    {group:'Targets',metric:'Attendance',sub:'DAS',field:'Min Cap',key:'dasCap'},
-    {group:'Targets',metric:'Attendance',sub:'Inactivity',field:'Max Cap',key:'inactCap'},
-    {group:'Targets',metric:'EMI Collection',sub:'4th EMI',field:'Target',key:'emi4Target'},
-    {group:'Targets',metric:'EMI Collection',sub:'4th EMI',field:'Min Cap.',key:'emi4Cap'},
-    {group:'Targets',metric:'EMI Collection',sub:'1st EMI (Sep-Jun)',field:'Target',key:'emi1Target'},
-    {group:'Targets',metric:'EMI Collection',sub:'1st EMI (Sep-Jun)',field:'Min Cap.',key:'emi1Cap'},
-    {group:'Targets',metric:'EMI Collection',sub:'2nd EMI',field:'Target',key:'emi2Target'},
-    {group:'Targets',metric:'EMI Collection',sub:'2nd EMI',field:'Min Cap.',key:'emi2Cap'},
-    {group:'Targets',metric:'Test Performance and Attendance',sub:'Result',field:'Target',key:'resultTarget'},
-    {group:'Targets',metric:'Test Performance and Attendance',sub:'Attendance',field:'Target',key:'tpaAttTarget'},
-  ];
+  // Target columns — dynamically generated from SM_LIST like Achieved/Ach%
+  function makeTgtFields() {
+    var fields = [];
+    SM_LIST.forEach(function(sm) {
+      fields.push({group:'Targets', metric:sm.metric, sub:sm.sub, field:'Target', key:sm.key+'Target'});
+      fields.push({group:'Targets', metric:sm.metric, sub:sm.sub, field:'Cap', key:sm.key+'Cap'});
+    });
+    return fields;
+  }
+  const tgtFields = makeTgtFields(); // 16 entries (8 × 2) // now 16, not 13
 
   // Achieved columns (8)
   const achFields = SM_LIST.map(sm => ({
@@ -927,10 +921,7 @@ function exportCsv() {
     return true;
   });
 
-  const tgtHeaders = SM_LIST.flatMap(sm => {
-    if (sm.sub === 'Inactivity') return [sm.sub + ' (Max Cap)'];
-    return [sm.sub + ' (Target)', sm.sub + ' (Min Cap)'];
-  });
+  const tgtHeaders = SM_LIST.flatMap(sm => [sm.sub + ' (Target)', sm.sub + ' (Cap)']);
   const achHeaders = SM_LIST.map(sm => sm.sub + ' (Achieved)');
   const pctHeaders = SM_LIST.map(sm => sm.sub + ' (%)');
   const headers = ['Region', 'Center', 'Zone', 'Bus. Head', 'Center Head',
@@ -939,11 +930,7 @@ function exportCsv() {
 
   const csvRows = [headers.join(',')];
   rows.forEach(r => {
-    const tgtVals = SM_LIST.flatMap(sm => {
-      const key = sm.key;
-      if (sm.sub === 'Inactivity') return [r[key + 'Cap'] ?? ''];
-      return [r[key + 'Target'] ?? '', r[key + 'Cap'] ?? ''];
-    });
+    const tgtVals = SM_LIST.flatMap(sm => [r[sm.key + 'Target'] ?? '', r[sm.key + 'Cap'] ?? '']);
     const achVals = SM_LIST.map(sm => r[sm.key + 'Achieved'] ?? '');
     const pctVals = SM_LIST.map(sm => r[sm.key + 'AchPct'] != null ? r[sm.key + 'AchPct'].toFixed(1) + '%' : '');
     const vals = [r.region, r.center, r.zone, r.businessHead, r.centerHead,
