@@ -80,7 +80,7 @@
               <select id="filterCenter" class="rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[170px] shadow-sm focus:ring-2 focus:ring-indigo-300"></select>
             </div>
             <div>
-              <label class="block text-[10px] font-semibold uppercase tracking-wider text-indigo-600 mb-0.5">Metric View</label>
+              <label class="block text-[10px] font-semibold uppercase tracking-wider text-indigo-600 mb-0.5">Metric</label>
               <select id="filterMetric" class="rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[170px] shadow-sm focus:ring-2 focus:ring-indigo-300"></select>
             </div>
             <button id="resetFiltersBtn" class="text-xs bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-1.5 rounded-lg transition-all active:scale-95 flex items-center gap-1">
@@ -106,32 +106,32 @@
 
         <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
           <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-emerald-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">🏆 Top Center</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">&#127942; Top Center</p>
             <p id="kpiTopCenter" class="text-sm font-bold mt-1 truncate">—</p>
             <p id="kpiTopScore" class="text-emerald-600 font-bold text-lg mt-0.5">—</p>
           </div>
           <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-rose-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">📉 Lowest Center</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">&#128201; Lowest Center</p>
             <p id="kpiBottomCenter" class="text-sm font-bold mt-1 truncate">—</p>
             <p id="kpiBottomScore" class="text-rose-600 font-bold text-lg mt-0.5">—</p>
           </div>
           <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-indigo-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">📊 Avg Score</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">&#128202; Avg Score</p>
             <p id="kpiAvgScore" class="text-lg font-bold mt-1">—</p>
             <p class="text-slate-400 text-[10px] mt-0.5">across selection</p>
           </div>
           <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-amber-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">🏛️ Active Centers</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">&#127963; Active Centers</p>
             <p id="kpiCenterCount" class="text-lg font-bold mt-1">—</p>
             <p class="text-slate-400 text-[10px] mt-0.5">in current selection</p>
           </div>
           <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-cyan-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">🌎 Best Region</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">&#127758; Best Region</p>
             <p id="kpiBestRegion" class="text-sm font-bold mt-1 truncate">—</p>
             <p id="kpiBestRegionScore" class="text-cyan-600 font-bold text-lg mt-0.5">—</p>
           </div>
           <div class="kpi-card bg-white rounded-2xl shadow-sm border border-slate-100 p-4 border-l-[5px] border-l-purple-500">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">🔵 Best Zone</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">&#128309; Best Zone</p>
             <p id="kpiBestZone" class="text-sm font-bold mt-1 truncate">—</p>
             <p id="kpiBestZoneScore" class="text-purple-600 font-bold text-lg mt-0.5">—</p>
           </div>
@@ -161,31 +161,27 @@
           </div>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
-          <div class="flex items-center gap-2 mb-3">
-            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-border-all"></i></div>
-            <h3 class="font-semibold text-sm">Region × Metric Heatmap</h3>
-          </div>
-          <div class="overflow-auto rounded-xl">
-            <table class="heatmap w-full text-xs" id="heatmapTable"></table>
-          </div>
-        </div>
-
-        <!-- ═══════ SEPARATE METRIC & SUB-METRIC DRILL-DOWN CHARTS ═══════ -->
-        <div class="mt-8">
-          <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm"><i class="fa-solid fa-chart-line"></i></div>
-              <div>
-                <h2 class="font-bold text-base md:text-lg text-slate-800 dark:text-white">Metric & Sub-Metric Performance Drill-Down</h2>
-                <p class="text-xs text-slate-400">Dedicated trend lines for metrics and their corresponding sub-metrics</p>
-              </div>
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+          <div class="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-border-all"></i></div>
+              <h3 class="font-semibold text-sm">Region × Metric Heatmap</h3>
+            </div>
+            <div class="overflow-auto rounded-xl">
+              <table class="heatmap w-full text-xs" id="heatmapTable"></table>
             </div>
           </div>
-          <!-- Grid Container for Metric Charts -->
-          <div id="metricChartsGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-5"></div>
+          <div class="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5 flex flex-col" style="grid-column:span 2">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-line"></i></div>
+                <h3 class="font-semibold text-sm">Historical Trend</h3>
+              </div>
+              <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">by filters</span>
+            </div>
+            <div class="relative flex-1" style="min-height:220px"><canvas id="chartTrend"></canvas></div>
+          </div>
         </div>
-
       </section>
 
       <!-- ═══════ TAB 2: ZONE WISE ═══════ -->
