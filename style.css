@@ -2,13 +2,12 @@
    VP Operations Command Center — Styles
    ═══════════════════════════════════════════════════════════════ */
 
-/* ─── Google Font ─── */
 @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap');
 
 * { font-family: 'Inter', system-ui, sans-serif; box-sizing: border-box; }
 body { background: #f0f2f8; margin: 0; }
 
-/* ─── Scrollbar ─── */
+/* ─── Custom Scrollbar ─── */
 ::-webkit-scrollbar { height: 6px; width: 6px; }
 ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -21,7 +20,7 @@ body { background: #f0f2f8; margin: 0; }
 #tab-detail.tab-panel.active { display: flex; }
 @keyframes fadeUp { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
 
-/* ─── Score colour helpers ─── */
+/* ─── Score colors ─── */
 .score-high { background: #d1fae5 !important; color: #065f46; font-weight: 600; }
 .score-mid  { background: #fef9c3 !important; color: #854d0e; font-weight: 600; }
 .score-low  { background: #fecaca !important; color: #991b1b; font-weight: 600; }
@@ -44,14 +43,8 @@ body { background: #f0f2f8; margin: 0; }
 /* ─── Heatmap table ─── */
 table.heatmap th, table.heatmap td { white-space: nowrap; }
 
-/* ─── Counter animation ─── */
-.count-up { display: inline-block; }
-
 /* ─── Filter selects ─── */
 select, input[type="text"] { outline: none; }
-
-/* ─── Scrollable table containers ─── */
-.table-wrap { overflow: auto; max-height: 70vh; border-radius: 16px; }
 
 /* ─── Smooth transition for theme ─── */
 *, *::before, *::after { transition: background-color 0.25s ease, border-color 0.2s ease; }
@@ -60,12 +53,11 @@ select, input[type="text"] { outline: none; }
 @media print { .no-print { display: none !important; } }
 
 /* ═══════════════════════════════════════════════════════════════
-   DETAILED DATA — PROFESSIONAL EXCEL GRID
+   DETAILED DATA — EXCEL GRID
    ═══════════════════════════════════════════════════════════════ */
 
 #tab-detail { background: #e7ebf3; }
 
-/* ─── Grid ─── */
 .detail-grid {
   border-collapse: collapse;
   min-width: 100%;
@@ -73,14 +65,12 @@ select, input[type="text"] { outline: none; }
   table-layout: fixed;
 }
 
-/* thead itself sticky for robust freeze */
 .detail-grid thead {
   position: sticky;
   top: 0;
   z-index: 30;
 }
 
-/* ─── Header — SINGLE color (Excel dark blue) ─── */
 .detail-grid thead th {
   background: #2f5496 !important;
   color: #fff;
@@ -97,7 +87,6 @@ select, input[type="text"] { outline: none; }
   text-overflow: ellipsis;
 }
 
-/* Letter row — slightly darker shade, same family */
 .detail-letter-row th {
   font-size: 9px;
   padding: 1px 6px;
@@ -109,7 +98,6 @@ select, input[type="text"] { outline: none; }
   z-index: 50 !important;
 }
 
-/* Group row */
 .detail-group-row th {
   font-weight: 700;
   font-size: 10px;
@@ -118,7 +106,6 @@ select, input[type="text"] { outline: none; }
   z-index: 40 !important;
 }
 
-/* Metric row */
 .detail-metric-row th {
   font-weight: 500;
   font-size: 9px;
@@ -127,7 +114,6 @@ select, input[type="text"] { outline: none; }
   z-index: 30 !important;
 }
 
-/* Field row */
 .detail-field-row th {
   font-weight: 500;
   font-size: 9px;
@@ -136,7 +122,6 @@ select, input[type="text"] { outline: none; }
   z-index: 25 !important;
 }
 
-/* ─── Body rows ─── */
 .detail-grid tbody tr td {
   padding: 3px 6px;
   font-size: 10px;
@@ -157,7 +142,6 @@ select, input[type="text"] { outline: none; }
   background: #d6e0f0 !important;
 }
 
-/* ─── Frozen columns (4: #, Region, Center, Zone) ─── */
 .detail-rownum {
   text-align: center;
   color: #64748b;
@@ -171,7 +155,6 @@ select, input[type="text"] { outline: none; }
   padding: 3px 4px !important;
 }
 
-/* Frozen cells — SOLID backgrounds so scrollable data behind is fully covered */
 .detail-frozen {
   position: sticky;
   z-index: 8;
@@ -189,55 +172,32 @@ select, input[type="text"] { outline: none; }
   background: #d6e0f0 !important;
 }
 
-/* Right-edge shadow on last frozen col (Zone) — Excel-like separator */
 .detail-frozen-zone {
   position: sticky;
   z-index: 9;
   border-right: 2px solid #9aa4b8 !important;
 }
-.detail-frozen-zone::after {
-  content: '';
-  position: absolute;
-  right: -8px;
-  top: 0;
-  bottom: 0;
-  width: 8px;
-  background: linear-gradient(to right, rgba(0,0,0,0.12), transparent);
-  pointer-events: none;
-  z-index: 10;
-}
 
-/* Don't clip frozen cells so the shadow can render outside */
 .detail-rownum,
 .detail-frozen {
   overflow: visible !important;
 }
 
-/* ─── Text alignment ─── */
 .detail-num { text-align: center; }
-.detail-bold { font-weight: 600; }
+.detail-target   { background: #eaf0fa !important; }
+.detail-achieved { background: #e6f5ea !important; }
+.detail-pct      { background: #fff7e5 !important; }
 
-/* ─── Group background colors (Target / Achieved / Ach.%) ─── */
-.detail-target   { background: #eaf0fa !important; }  /* soft blue */
-.detail-achieved { background: #e6f5ea !important; }  /* soft green */
-.detail-pct      { background: #fff7e5 !important; }  /* soft amber */
-.detail-num.detail-target,
-.detail-num.detail-achieved,
-.detail-num.detail-pct { text-align: center; }
-
-/* hover overrides for group colors */
 .detail-grid tbody tr:hover td.detail-target   { background: #d4e2f5 !important; }
 .detail-grid tbody tr:hover td.detail-achieved { background: #c8ebd2 !important; }
 .detail-grid tbody tr:hover td.detail-pct      { background: #f5edc8 !important; }
 
-/* ─── Conditional formatting (text + bg for ach%) ─── */
 .cf-green { color: #1b5e20; font-weight: 600; }
 .cf-amber { color: #8d6e00; font-weight: 600; }
 .cf-orange { color: #c43e00; font-weight: 600; }
 .cf-red { color: #b71c1c; font-weight: 600; }
 .cf-na { color: #94a3b8; }
 
-/* ─── Excel status bar ─── */
 .detail-statusbar {
   background: #2f5496;
   color: #fff;
@@ -252,7 +212,6 @@ select, input[type="text"] { outline: none; }
 .detail-statusbar .muted { color: rgba(255,255,255,0.65); }
 .detail-statusbar .right { margin-left: auto; }
 
-/* ─── Detail toolbar ─── */
 .detail-toolbar {
   display: flex;
   align-items: center;
@@ -264,7 +223,6 @@ select, input[type="text"] { outline: none; }
   gap: 8px;
 }
 .detail-toolbar .info { font-size: 12px; color: #64748b; display: flex; align-items: center; gap: 6px; }
-.detail-toolbar .info strong { color: #1e293b; }
 .detail-toolbar .actions { display: flex; align-items: center; gap: 8px; }
 .detail-toolbar .search-wrap { position: relative; }
 .detail-toolbar .search-wrap i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 12px; }
@@ -293,123 +251,12 @@ select, input[type="text"] { outline: none; }
 .detail-toolbar .btn:hover { background: #f1f5f9; border-color: #94a3b8; }
 .detail-toolbar .btn i { color: #2f5496; }
 
-/* ─── Shadow on scroll for frozen columns ─── */
-.detail-frozen::after {
-  content: '';
-  position: absolute;
-  right: -6px;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  background: linear-gradient(to right, rgba(0,0,0,0.06), transparent);
-  pointer-events: none;
-}
-
-/* ─── Scrollbar for detail area ─── */
-#tab-detail ::-webkit-scrollbar { height: 14px; width: 14px; }
-#tab-detail ::-webkit-scrollbar-thumb { background: #bac0cc; border: 3px solid #e7ebf3; border-radius: 7px; }
-#tab-detail ::-webkit-scrollbar-track { background: #e7ebf3; }
-#tab-detail ::-webkit-scrollbar-corner { background: #e7ebf3; }
-
 /* ═══════════════════════════════════════════════════════════════
-   MOBILE RESPONSIVE — all tabs
+   MOBILE RESPONSIVENESS
    ═══════════════════════════════════════════════════════════════ */
 
-/* ─── Up to 768px (tablet + phone) ─── */
 @media (max-width: 768px) {
-
-  /* Tab buttons: scrollable row */
-  .tab-btn {
-    font-size: 11px;
-    padding: 8px 12px;
-    white-space: nowrap;
-  }
-
-  /* ─── KPI cards: 2 columns ─── */
-  .kpi-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 8px !important;
-  }
-
-  /* ─── Charts: full width ─── */
-  .chart-grid {
-    grid-template-columns: 1fr !important;
-    gap: 12px !important;
-  }
-  .chart-card {
-    padding: 12px !important;
-  }
-  .chart-card canvas {
-    max-height: 220px;
-  }
-
-  /* ─── Overview insights ─── */
-  .insights-bar {
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  /* ─── Zone / Region table font ─── */
-  .table-wrap {
-    font-size: 11px;
-  }
-
-  /* ─── Detailed Data toolbar ─── */
-  .detail-toolbar {
-    flex-wrap: wrap;
-    padding: 8px 10px;
-  }
-  .detail-toolbar .search-wrap input {
-    width: 140px;
-    font-size: 12px;
-  }
-
-  /* ─── Detailed Data grid font ─── */
-  .detail-grid thead th {
-    font-size: 8px !important;
-    padding: 2px 4px !important;
-  }
-  .detail-grid tbody tr td {
-    font-size: 8px !important;
-    padding: 2px 4px !important;
-  }
-  .detail-letter-row th {
-    font-size: 7px !important;
-    padding: 1px 4px !important;
-  }
-
-  /* ─── Status bar ─── */
-  .detail-statusbar {
-    font-size: 9px;
-    padding: 3px 10px;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-}
-
-/* ─── Up to 480px (phone portrait) ─── */
-@media (max-width: 480px) {
-  .kpi-grid {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 6px !important;
-  }
-  .tab-btn {
-    font-size: 10px;
-    padding: 6px 10px;
-  }
-  .detail-grid thead th {
-    font-size: 7px !important;
-    padding: 1px 3px !important;
-  }
-  .detail-grid tbody tr td {
-    font-size: 7px !important;
-    padding: 1px 3px !important;
-  }
-  .detail-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .detail-toolbar .actions {
-    justify-content: space-between;
-  }
+  .tab-btn { font-size: 11px; padding: 8px 12px; white-space: nowrap; }
+  .detail-toolbar { flex-wrap: wrap; padding: 8px 10px; }
+  .detail-toolbar .search-wrap input { width: 140px; font-size: 12px; }
 }
