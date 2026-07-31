@@ -98,16 +98,13 @@ function toggleTheme() {
   document.documentElement.classList.toggle('dark', darkMode);
   const icon = DOM.themeToggle.querySelector('i');
   icon.className = darkMode ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
-  if (darkMode) {
-    document.body.style.background = '#0c0a20';
-    document.querySelectorAll('.bg-white, .kpi-card').forEach(el => el.style.background = '#161330');
-    document.querySelectorAll('.text-slate-800').forEach(el => el.style.color = '#e2e8f0');
-  } else {
-    document.body.style.background = '#f0f2f8';
-    document.querySelectorAll('.bg-white, .kpi-card').forEach(el => el.style.background = '');
-    document.querySelectorAll('.text-slate-800').forEach(el => el.style.color = '');
-  }
+  // Re-create charts so grid/tick colors adapt to the active theme
+  if (DATA) renderAll();
 }
+
+/* Theme-aware chart palette helpers */
+function chartGridColor() { return darkMode ? 'rgba(255,255,255,0.08)' : '#f1f5f9'; }
+function chartTickColor() { return darkMode ? '#94a3b8' : '#64748b'; }
 
 /* ═══════════════════════════════════════════════════════════════
    ERROR & LOADING
@@ -556,7 +553,10 @@ function renderTopBottomChart(f) {
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.x.toFixed(2) + '%' } } },
-      scales: { x: { grid: { color: '#f1f5f9' }, ticks: { callback: v => v + '%' } }, y: { grid: { display: false } } }
+      scales: {
+        x: { grid: { color: chartGridColor() }, ticks: { callback: v => v + '%', color: chartTickColor() } },
+        y: { grid: { display: false }, ticks: { color: chartTickColor() } }
+      }
     }
   });
 }
@@ -574,7 +574,10 @@ function renderZoneComparisonChart(f) {
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.y.toFixed(2) + '%' } } },
-      scales: { y: { grid: { color: '#f1f5f9' }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false } } }
+      scales: {
+        y: { grid: { color: chartGridColor() }, ticks: { callback: v => v + '%', color: chartTickColor() } },
+        x: { grid: { display: false }, ticks: { color: chartTickColor() } }
+      }
     }
   });
 }
@@ -678,19 +681,21 @@ function renderTrendChart(f) {
   datasets.push({
     label: 'All Metrics Combined',
     data: allValues,
-    borderColor: '#1e293b',
+    borderColor: darkMode ? '#e2e8f0' : '#1e293b',
     backgroundColor: function(ctx) {
       if (!ctx.chart.chartArea) return 'rgba(30,41,59,0.08)';
-      var g = ctx.chart.ctx.createLinearGradient(0, ctx.chart.chartArea.top, 0, ctx.chart.chartArea.bottom);
-      g.addColorStop(0, 'rgba(30,41,59,0.15)');
-      g.addColorStop(1, 'rgba(30,41,59,0.01)');
+      const c1 = darkMode ? 'rgba(226,232,240,0.15)' : 'rgba(30,41,59,0.15)';
+      const c2 = darkMode ? 'rgba(226,232,240,0.01)' : 'rgba(30,41,59,0.01)';
+      const g = ctx.chart.ctx.createLinearGradient(0, ctx.chart.chartArea.top, 0, ctx.chart.chartArea.bottom);
+      g.addColorStop(0, c1);
+      g.addColorStop(1, c2);
       return g;
     },
     fill: true,
     tension: 0.4,
     pointRadius: 3,
     pointHoverRadius: 7,
-    pointBackgroundColor: '#1e293b',
+    pointBackgroundColor: darkMode ? '#e2e8f0' : '#1e293b',
     borderWidth: 2,
     borderDash: [5, 3],
     spanGaps: true
@@ -703,7 +708,7 @@ function renderTrendChart(f) {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { position: 'bottom', labels: { boxWidth: 14, padding: 14, font: { size: 11 } } },
+        legend: { position: 'bottom', labels: { boxWidth: 14, padding: 14, font: { size: 11 }, color: darkMode ? '#cbd5e1' : '#64748b' } },
         tooltip: {
           mode: 'index', intersect: false,
           callbacks: {
@@ -713,11 +718,11 @@ function renderTrendChart(f) {
       },
       scales: {
         y: {
-          grid: { color: '#f1f5f9' },
-          ticks: { callback: v => v + '%' },
+          grid: { color: chartGridColor() },
+          ticks: { callback: v => v + '%', color: chartTickColor() },
           beginAtZero: true
         },
-        x: { grid: { display: false } }
+        x: { grid: { display: false }, ticks: { color: chartTickColor() } }
       }
     }
   });
@@ -731,6 +736,11 @@ function renderZoneTab(f) {
   const zones = Object.keys(byZone).sort((a, b) => (parseInt(a.replace(/\D/g, ''), 10) || 0) - (parseInt(b.replace(/\D/g, ''), 10) || 0));
   DOM.zoneGrid.innerHTML = '';
   if (zones.length === 0) { DOM.zoneGrid.innerHTML = '<p class="text-sm" style="color:#94a3b8">No centers match filters.</p>'; return; }
+
+  // Min/max across ALL filtered centers so colours are consistent between zone cards
+  const allScores = list.map(c => c.totalScore);
+  const minScore = Math.min.apply(null, allScores);
+  const maxScore = Math.max.apply(null, allScores);
 
   zones.forEach(zone => {
     const centers = byZone[zone].slice().sort((a, b) => a.zoneRank - b.zoneRank);
@@ -746,7 +756,7 @@ function renderZoneTab(f) {
           <th class="p-2.5 text-left">Center</th><th class="p-2.5">Score</th><th class="p-2.5">Rank</th>
         </tr></thead><tbody>${centers.map(c =>
           '<tr class="border-t border-slate-50"><td class="p-2.5 font-medium">' + c.center +
-          '</td><td class="p-2.5 text-center ' + scoreClass(c.totalScore) + '">' + c.totalScore.toFixed(2) + '%' +
+          '</td><td class="p-2.5 text-center" style="' + scoreGradientStyle(c.totalScore, minScore, maxScore) + '">' + c.totalScore.toFixed(2) + '%' +
           '</td><td class="p-2.5 text-center font-bold" style="color:#4f46e5">#' + c.zoneRank + '</td></tr>'
         ).join('')}</tbody></table>
       </div>`;
@@ -763,6 +773,11 @@ function renderRegionTab(f) {
   DOM.regionGrid.innerHTML = '';
   if (regions.length === 0) { DOM.regionGrid.innerHTML = '<p class="text-sm" style="color:#94a3b8">No centers match filters.</p>'; return; }
 
+  // Min/max across ALL filtered centers so colours are consistent between region cards
+  const allScores = list.map(c => c.totalScore);
+  const minScore = Math.min.apply(null, allScores);
+  const maxScore = Math.max.apply(null, allScores);
+
   regions.forEach(region => {
     const centers = byRegion[region].slice().sort((a, b) => a.overallRank - b.overallRank);
     const card = document.createElement('div');
@@ -777,7 +792,7 @@ function renderRegionTab(f) {
           <th class="p-2.5 text-left">Center</th><th class="p-2.5">Score</th><th class="p-2.5">Zone</th><th class="p-2.5">Rank</th>
         </tr></thead><tbody>${centers.map(c =>
           '<tr class="border-t border-slate-50"><td class="p-2.5 font-medium">' + c.center +
-          '</td><td class="p-2.5 text-center ' + scoreClass(c.totalScore) + '">' + c.totalScore.toFixed(2) + '%' +
+          '</td><td class="p-2.5 text-center" style="' + scoreGradientStyle(c.totalScore, minScore, maxScore) + '">' + c.totalScore.toFixed(2) + '%' +
           '</td><td class="p-2.5 text-center" style="color:#64748b">' + c.zone +
           '</td><td class="p-2.5 text-center font-bold" style="color:#4f46e5">#' + c.overallRank + '</td></tr>'
         ).join('')}</tbody></table>
@@ -786,7 +801,25 @@ function renderRegionTab(f) {
   });
 }
 
-function scoreClass(v) { return v > 60 ? 'score-high' : v >= 30 ? 'score-mid' : 'score-low'; }
+/* Excel-style continuous colour scale — lowest value → red, highest → green.
+   Returns an inline style for the score cell; adapts to the active theme. */
+function scoreGradientStyle(v, min, max) {
+  const t = max === min ? 0.5 : Math.max(0, Math.min(1, (v - min) / (max - min)));
+  const stops = [[239, 68, 68], [245, 158, 11], [16, 185, 129]]; // red → amber → green
+  const seg = t * 2;
+  const i = Math.min(2, Math.floor(seg));
+  const k = seg - i;
+  const a = stops[i], b = stops[Math.min(2, i + 1)];
+  const r = Math.round(a[0] + (b[0] - a[0]) * k);
+  const g = Math.round(a[1] + (b[1] - a[1]) * k);
+  const bl = Math.round(a[2] + (b[2] - a[2]) * k);
+  const dark = document.documentElement.classList.contains('dark');
+  const bg = dark
+    ? 'linear-gradient(135deg, rgba(' + r + ',' + g + ',' + bl + ',0.45), rgba(' + r + ',' + g + ',' + bl + ',0.20))'
+    : 'linear-gradient(135deg, rgba(' + r + ',' + g + ',' + bl + ',0.30), rgba(' + r + ',' + g + ',' + bl + ',0.10))';
+  const fg = dark ? '#f1f5f9' : '#0f172a';
+  return 'background:' + bg + ';color:' + fg + ';font-weight:600;border-radius:6px;';
+}
 
 /* ═══════════════════════════════════════════════════════════════
    DETAILED DATA — PROFESSIONAL SINGLE-COLOR EXCEL GRID
@@ -1124,7 +1157,7 @@ function renderSubMetricCharts(f) {
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
-          legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } },
+          legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 }, color: darkMode ? '#cbd5e1' : '#64748b' } },
           tooltip: {
             mode: 'index', intersect: false,
             callbacks: {
@@ -1137,12 +1170,12 @@ function renderSubMetricCharts(f) {
         scales: {
           x: {
             stacked: false, grid: { display: false },
-            ticks: { font: { size: 11 } }
+            ticks: { font: { size: 11 }, color: chartTickColor() }
           },
           y: {
             stacked: false, beginAtZero: true,
-            grid: { color: '#f1f5f9' },
-            ticks: { font: { size: 11 } }
+            grid: { color: chartGridColor() },
+            ticks: { font: { size: 11 }, color: chartTickColor() }
           }
         }
       }

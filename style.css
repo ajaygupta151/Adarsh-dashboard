@@ -413,3 +413,89 @@ select, input[type="text"] { outline: none; }
     justify-content: space-between;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   DARK MODE
+   ═══════════════════════════════════════════════════════════════ */
+
+.dark body { background: #0c0a20; }
+
+/* Cards */
+.dark .bg-white,
+.dark .kpi-card { background: #161330 !important; border-color: #2d2850 !important; }
+
+/* Headings & generic text */
+.dark h1, .dark h2, .dark h3, .dark h4 { color: #e2e8f0 !important; }
+.dark .text-slate-800, .dark .text-slate-700, .dark .text-slate-600 { color: #cbd5e1 !important; }
+.dark .text-slate-500, .dark .text-slate-400, .dark .text-slate-300 { color: #94a3b8 !important; }
+
+/* KPI value text (p tags without explicit color class) */
+.dark .kpi-card p:not([class*="text-"]) { color: #e2e8f0; }
+.dark #kpiTopCenter, .dark #kpiBottomCenter,
+.dark #kpiAvgScore, .dark #kpiCenterCount,
+.dark #kpiBestRegion, .dark #kpiBestZone { color: #e2e8f0 !important; }
+
+/* Filter bar */
+.dark .glass { background: rgba(22,19,48,0.88) !important; border-color: #2d2850 !important; }
+.dark .glass label { color: #a5b4fc !important; }
+.dark .glass select,
+.dark select,
+.dark input[type="text"],
+.dark .detail-toolbar .search-wrap input {
+  background: #0f0c2e !important;
+  color: #e2e8f0 !important;
+  border-color: #3b3565 !important;
+}
+.dark .glass select option { background: #161330; color: #e2e8f0; }
+
+/* Reset button */
+.dark #resetFiltersBtn { background: #1e1b4b !important; color: #cbd5e1 !important; border-color: #3b3565 !important; }
+.dark #resetFiltersBtn:hover { background: #2a2560 !important; }
+
+/* Insights bar */
+.dark #insightsBar { background: #14103a !important; border-color: #2d2850 !important; }
+.dark #insightsBar span { color: #cbd5e1 !important; }
+
+/* Light utility chips (bg-slate-50 / bg-slate-100) */
+.dark .bg-slate-50 { background: #1e1b4b !important; }
+.dark .bg-slate-100 { background: #221f4d !important; }
+
+/* ─── Heatmap ─── */
+.dark #heatmapTable th { background: #1e1b4b !important; color: #a5b4fc !important; }
+.dark #heatmapTable td { background: #1a1738 !important; color: #cbd5e1 !important; }
+.dark #heatmapTable td.score-high { background: #123a2b !important; color: #6ee7b7 !important; }
+.dark #heatmapTable td.score-mid  { background: #3d3a12 !important; color: #fde68a !important; }
+.dark #heatmapTable td.score-low  { background: #45111a !important; color: #fca5a5 !important; }
+.dark #heatmapTable td[style*="background:#fff"] { background: #161330 !important; }
+.dark #heatmapTable tr { border-color: #2d2850; }
+
+/* ─── Zone / Region cards ─── */
+.dark #zoneGrid thead tr, .dark #regionGrid thead tr { background: #1e1b4b !important; color: #a5b4fc !important; }
+.dark #zoneGrid th, .dark #regionGrid th { color: #a5b4fc !important; }
+.dark #zoneGrid td, .dark #regionGrid td { color: #cbd5e1 !important; }
+.dark #zoneGrid tr, .dark #regionGrid tr { border-color: #2d2850 !important; }
+
+/* ─── Header latest-date label ─── */
+.dark #latestDateLabel { color: #e2e8f0 !important; }
+
+/* ─── Detail tab: keep Excel-style light grid, darken chrome around it ─── */
+.dark #tab-detail { background: #0c0a20; }
+.dark .detail-toolbar { background: #161330; border-color: #2d2850; }
+.dark .detail-toolbar .info { color: #94a3b8; }
+.dark .detail-toolbar .info span { color: #e2e8f0 !important; }
+.dark .detail-toolbar .btn { background: #161330; border-color: #3b3565; color: #cbd5e1; }
+.dark .detail-toolbar .btn:hover { background: #221f4d; }
+
+/* ─── Footer ─── */
+.dark footer { color: #94a3b8; border-color: #2d2850 !important; }
+
+/* ─── Score gradient legend (Zone / Region tabs) ─── */
+.score-legend-bar {
+  display: inline-block;
+  width: 56px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ef4444, #f59e0b, #10b981);
+}
+.dark .score-legend { background: #221f4d !important; color: #94a3b8 !important; }
+.dark .score-legend-bar { box-shadow: 0 0 0 1px rgba(255,255,255,0.10); }
