@@ -1049,7 +1049,7 @@ function renderSubMetricCharts(f) {
     metrics = [f.metric];
     labelPrefix = f.metric;
   }
-  if (subtitle) subtitle.textContent = labelPrefix + ' \u2014 Stacked view: Target, Min/Max Cap & Achieved by sub-metric';
+  if (subtitle) subtitle.textContent = labelPrefix + ' \u2014 Target vs Min/Max Cap vs Achieved by sub-metric';
 
   // Base rows filtered by region/zone/center (but NOT metric)
   const baseRows = DATA.rawRows.filter(r =>
@@ -1116,9 +1116,9 @@ function renderSubMetricCharts(f) {
       data: {
         labels: subLabels,
         datasets: [
-          { label: 'Achieved',   data: achievedData, backgroundColor: 'rgba(59,130,246,0.85)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4, stack: 'subStack' },
-          { label: 'Min/Max Cap', data: capData,      backgroundColor: 'rgba(245,158,11,0.85)', borderColor: '#f59e0b', borderWidth: 1, borderRadius: 4, stack: 'subStack' },
-          { label: 'Target',     data: targetData,    backgroundColor: 'rgba(16,185,129,0.85)', borderColor: '#10b981', borderWidth: 1, borderRadius: 4, stack: 'subStack' }
+          { label: 'Target',     data: targetData,    backgroundColor: 'rgba(16,185,129,0.85)', borderColor: '#10b981', borderWidth: 1, borderRadius: 4 },
+          { label: 'Min/Max Cap', data: capData,      backgroundColor: 'rgba(245,158,11,0.85)', borderColor: '#f59e0b', borderWidth: 1, borderRadius: 4 },
+          { label: 'Achieved',   data: achievedData, backgroundColor: 'rgba(59,130,246,0.85)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 }
         ]
       },
       options: {
@@ -1135,11 +1135,14 @@ function renderSubMetricCharts(f) {
           }
         },
         scales: {
-          x: { stacked: true, grid: { display: false } },
+          x: {
+            stacked: false, grid: { display: false },
+            ticks: { font: { size: 11 } }
+          },
           y: {
-            stacked: true, beginAtZero: true,
+            stacked: false, beginAtZero: true,
             grid: { color: '#f1f5f9' },
-            ticks: { callback: function(v) { return v + '%'; } }
+            ticks: { font: { size: 11 } }
           }
         }
       }
