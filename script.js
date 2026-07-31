@@ -1151,5 +1151,8 @@ function renderSubMetricCharts(f) {
   }
 }
 
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
 function uniq(arr) { return Array.from(new Set(arr.filter(Boolean))); }
 function debounce(fn, wait) { let t; return function(...a) { clearTimeout(t); t = setTimeout(function() { fn.apply(this, a); }, wait); }; }
