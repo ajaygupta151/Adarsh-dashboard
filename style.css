@@ -1,12 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════
-   VP Operations Command Center — Styles
+   Adarsh Vidyapeeth Command Center — Styles
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── Google Font ─── */
 @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap');
 
 * { font-family: 'Inter', system-ui, sans-serif; box-sizing: border-box; }
-body { background: #f0f2f8; margin: 0; }
+body { background: #f5f2f2; margin: 0; }
 
 /* ─── Scrollbar ─── */
 ::-webkit-scrollbar { height: 6px; width: 6px; }
@@ -15,7 +15,7 @@ body { background: #f0f2f8; margin: 0; }
 
 /* ─── Tab system ─── */
 .tab-btn { transition: all 0.25s ease; cursor: pointer; border: none; }
-.tab-btn.active { background: #1e1b4b !important; color: #fff !important; box-shadow: 0 6px 20px rgba(30,27,75,0.35); }
+.tab-btn.active { background: linear-gradient(135deg, #e21b38, #b3142b) !important; color: #fff !important; box-shadow: 0 6px 20px rgba(226,27,56,0.35); }
 .tab-panel { display: none; animation: fadeUp 0.35s ease; }
 .tab-panel.active { display: block; }
 #tab-detail.tab-panel.active { display: flex; }
@@ -35,11 +35,12 @@ body { background: #f0f2f8; margin: 0; }
 
 /* ─── Skeleton loading ─── */
 .skeleton { background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px; }
+.dark .skeleton { background: linear-gradient(90deg, #232327 25%, #2f2f37 50%, #232327 75%); background-size: 200% 100%; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-/* ─── Zone / Region banner gradients ─── */
-.zone-banner { background: linear-gradient(135deg, #5b1a3a, #7c1f4a); }
-.region-banner { background: linear-gradient(135deg, #111a4a, #241a63); }
+/* ─── Zone / Region banner gradients — Physics Wallah black → red ─── */
+.zone-banner { background: linear-gradient(135deg, #0a0a0c, #7a0c1e); }
+.region-banner { background: linear-gradient(135deg, #7a0c1e, #e21b38); }
 
 /* ─── Heatmap table ─── */
 table.heatmap th, table.heatmap td { white-space: nowrap; }
@@ -63,7 +64,7 @@ select, input[type="text"] { outline: none; }
    DETAILED DATA — PROFESSIONAL EXCEL GRID
    ═══════════════════════════════════════════════════════════════ */
 
-#tab-detail { background: #e7ebf3; }
+#tab-detail { background: #efe9ea; }
 
 /* ─── Grid ─── */
 .detail-grid {
@@ -80,14 +81,14 @@ select, input[type="text"] { outline: none; }
   z-index: 30;
 }
 
-/* ─── Header — SINGLE color (Excel dark blue) ─── */
+/* ─── Header — SINGLE color (Physics Wallah red) ─── */
 .detail-grid thead th {
-  background: #2f5496 !important;
+  background: #b3142b !important;
   color: #fff;
   font-weight: 600;
   font-size: 10px;
   padding: 3px 6px;
-  border: 1px solid #1f3f7a;
+  border: 1px solid #8a0f1f;
   white-space: nowrap;
   text-align: center;
   position: sticky;
@@ -102,8 +103,8 @@ select, input[type="text"] { outline: none; }
   font-size: 9px;
   padding: 1px 6px;
   font-weight: 700;
-  background: #1f3f7a !important;
-  border-bottom: 1px solid #152a54;
+  background: #8a0f1f !important;
+  border-bottom: 1px solid #5f0915;
   letter-spacing: 0.3px;
   top: 0 !important;
   z-index: 50 !important;
@@ -150,11 +151,11 @@ select, input[type="text"] { outline: none; }
 }
 
 .detail-grid tbody tr:nth-child(even) td {
-  background: #edf1f7;
+  background: #f3edf0;
 }
 
 .detail-grid tbody tr:hover td {
-  background: #d6e0f0 !important;
+  background: #f5d9de !important;
 }
 
 /* ─── Frozen columns (4: #, Region, Center, Zone) ─── */
@@ -163,11 +164,11 @@ select, input[type="text"] { outline: none; }
   color: #64748b;
   font-weight: 700;
   font-size: 9px;
-  background: #edf1f7 !important;
+  background: #f3edf0 !important;
   position: sticky !important;
   left: 0 !important;
   z-index: 12 !important;
-  border-right: 1px solid #bac0cc;
+  border-right: 1px solid #c9b8bd;
   padding: 3px 4px !important;
 }
 
@@ -179,14 +180,14 @@ select, input[type="text"] { outline: none; }
   text-align: left;
 }
 .detail-grid tbody tr:nth-child(even) td.detail-frozen {
-  background: #edf1f7 !important;
+  background: #f3edf0 !important;
 }
 .detail-grid tbody tr:nth-child(even) td.detail-rownum {
-  background: #edf1f7 !important;
+  background: #f3edf0 !important;
 }
 .detail-grid tbody tr:hover td.detail-frozen,
 .detail-grid tbody tr:hover td.detail-rownum {
-  background: #d6e0f0 !important;
+  background: #f5d9de !important;
 }
 
 /* Right-edge shadow on last frozen col (Zone) — Excel-like separator */
@@ -239,7 +240,7 @@ select, input[type="text"] { outline: none; }
 
 /* ─── Excel status bar ─── */
 .detail-statusbar {
-  background: #2f5496;
+  background: #b3142b;
   color: #fff;
   font-size: 11px;
   padding: 4px 20px;
@@ -276,7 +277,7 @@ select, input[type="text"] { outline: none; }
   width: 200px;
   background: #fff;
 }
-.detail-toolbar .search-wrap input:focus { border-color: #2f5496; box-shadow: 0 0 0 2px rgba(47,84,150,0.15); }
+.detail-toolbar .search-wrap input:focus { border-color: #e21b38; box-shadow: 0 0 0 2px rgba(226,27,56,0.15); }
 .detail-toolbar .btn {
   font-size: 12px;
   background: #fff;
@@ -290,8 +291,8 @@ select, input[type="text"] { outline: none; }
   color: #475569;
   transition: all 0.15s;
 }
-.detail-toolbar .btn:hover { background: #f1f5f9; border-color: #94a3b8; }
-.detail-toolbar .btn i { color: #2f5496; }
+.detail-toolbar .btn:hover { background: #fdf0f2; border-color: #e21b38; }
+.detail-toolbar .btn i { color: #e21b38; }
 
 /* ─── Shadow on scroll for frozen columns ─── */
 .detail-frozen::after {
@@ -307,9 +308,9 @@ select, input[type="text"] { outline: none; }
 
 /* ─── Scrollbar for detail area ─── */
 #tab-detail ::-webkit-scrollbar { height: 14px; width: 14px; }
-#tab-detail ::-webkit-scrollbar-thumb { background: #bac0cc; border: 3px solid #e7ebf3; border-radius: 7px; }
-#tab-detail ::-webkit-scrollbar-track { background: #e7ebf3; }
-#tab-detail ::-webkit-scrollbar-corner { background: #e7ebf3; }
+#tab-detail ::-webkit-scrollbar-thumb { background: #c9b8bd; border: 3px solid #efe9ea; border-radius: 7px; }
+#tab-detail ::-webkit-scrollbar-track { background: #efe9ea; }
+#tab-detail ::-webkit-scrollbar-corner { background: #efe9ea; }
 
 /* ═══════════════════════════════════════════════════════════════
    MOBILE RESPONSIVE — all tabs
@@ -418,11 +419,16 @@ select, input[type="text"] { outline: none; }
    DARK MODE
    ═══════════════════════════════════════════════════════════════ */
 
-.dark body { background: #0c0a20; }
+.dark body { background: #0a0a0c; }
 
 /* Cards */
 .dark .bg-white,
-.dark .kpi-card { background: #161330 !important; border-color: #2d2850 !important; }
+.dark .kpi-card { background: #131318 !important; border-color: #2b2b33 !important; }
+/* Keep KPI red/black left accent borders in dark mode */
+.dark .border-l-red-600, .dark .border-l-red-500 { border-left-color: #e21b38 !important; }
+.dark .border-l-\[\#0d0d10\], .dark .border-l-\[\#17171c\] { border-left-color: #1a1a20 !important; }
+/* Logo tile always white so the black-and-white PW logo stays readable in dark mode */
+.dark .logo-tile { background: #fff !important; }
 
 /* Headings & generic text */
 .dark h1, .dark h2, .dark h3, .dark h4 { color: #e2e8f0 !important; }
@@ -436,58 +442,58 @@ select, input[type="text"] { outline: none; }
 .dark #kpiBestRegion, .dark #kpiBestZone { color: #e2e8f0 !important; }
 
 /* Filter bar */
-.dark .glass { background: rgba(22,19,48,0.88) !important; border-color: #2d2850 !important; }
-.dark .glass label { color: #a5b4fc !important; }
+.dark .glass { background: rgba(16,16,20,0.92) !important; border-color: #2b2b33 !important; }
+.dark .glass label { color: #fda4af !important; }
 .dark .glass select,
 .dark select,
 .dark input[type="text"],
 .dark .detail-toolbar .search-wrap input {
-  background: #0f0c2e !important;
+  background: #0e0e12 !important;
   color: #e2e8f0 !important;
-  border-color: #3b3565 !important;
+  border-color: #3a3a44 !important;
 }
-.dark .glass select option { background: #161330; color: #e2e8f0; }
+.dark .glass select option { background: #131318; color: #e2e8f0; }
 
 /* Reset button */
-.dark #resetFiltersBtn { background: #1e1b4b !important; color: #cbd5e1 !important; border-color: #3b3565 !important; }
-.dark #resetFiltersBtn:hover { background: #2a2560 !important; }
+.dark #resetFiltersBtn { background: #211318 !important; color: #fda4af !important; border-color: #4a2a33 !important; }
+.dark #resetFiltersBtn:hover { background: #3a1f28 !important; }
 
 /* Insights bar */
-.dark #insightsBar { background: #14103a !important; border-color: #2d2850 !important; }
+.dark #insightsBar { background: #1e0d12 !important; border-color: #4a222c !important; }
 .dark #insightsBar span { color: #cbd5e1 !important; }
 
 /* Light utility chips (bg-slate-50 / bg-slate-100) */
-.dark .bg-slate-50 { background: #1e1b4b !important; }
-.dark .bg-slate-100 { background: #221f4d !important; }
+.dark .bg-slate-50 { background: #232327 !important; }
+.dark .bg-slate-100 { background: #29292f !important; }
 
 /* ─── Heatmap ─── */
-.dark #heatmapTable th { background: #1e1b4b !important; color: #a5b4fc !important; }
-.dark #heatmapTable td { background: #1a1738 !important; color: #cbd5e1 !important; }
+.dark #heatmapTable th { background: #241015 !important; color: #ff9aa8 !important; }
+.dark #heatmapTable td { background: #16161c !important; color: #cbd5e1 !important; }
 .dark #heatmapTable td.score-high { background: #123a2b !important; color: #6ee7b7 !important; }
 .dark #heatmapTable td.score-mid  { background: #3d3a12 !important; color: #fde68a !important; }
 .dark #heatmapTable td.score-low  { background: #45111a !important; color: #fca5a5 !important; }
-.dark #heatmapTable td[style*="background:#fff"] { background: #161330 !important; }
-.dark #heatmapTable tr { border-color: #2d2850; }
+.dark #heatmapTable td[style*="background:#fff"] { background: #131318 !important; }
+.dark #heatmapTable tr { border-color: #2b2b33; }
 
 /* ─── Zone / Region cards ─── */
-.dark #zoneGrid thead tr, .dark #regionGrid thead tr { background: #1e1b4b !important; color: #a5b4fc !important; }
-.dark #zoneGrid th, .dark #regionGrid th { color: #a5b4fc !important; }
+.dark #zoneGrid thead tr, .dark #regionGrid thead tr { background: #241015 !important; color: #ff9aa8 !important; }
+.dark #zoneGrid th, .dark #regionGrid th { color: #ff9aa8 !important; }
 .dark #zoneGrid td, .dark #regionGrid td { color: #cbd5e1 !important; }
-.dark #zoneGrid tr, .dark #regionGrid tr { border-color: #2d2850 !important; }
+.dark #zoneGrid tr, .dark #regionGrid tr { border-color: #2b2b33 !important; }
 
 /* ─── Header latest-date label ─── */
 .dark #latestDateLabel { color: #e2e8f0 !important; }
 
 /* ─── Detail tab: keep Excel-style light grid, darken chrome around it ─── */
-.dark #tab-detail { background: #0c0a20; }
-.dark .detail-toolbar { background: #161330; border-color: #2d2850; }
+.dark #tab-detail { background: #0a0a0c; }
+.dark .detail-toolbar { background: #131318; border-color: #2b2b33; }
 .dark .detail-toolbar .info { color: #94a3b8; }
 .dark .detail-toolbar .info span { color: #e2e8f0 !important; }
-.dark .detail-toolbar .btn { background: #161330; border-color: #3b3565; color: #cbd5e1; }
-.dark .detail-toolbar .btn:hover { background: #221f4d; }
+.dark .detail-toolbar .btn { background: #131318; border-color: #3a3a44; color: #cbd5e1; }
+.dark .detail-toolbar .btn:hover { background: #29292f; }
 
 /* ─── Footer ─── */
-.dark footer { color: #94a3b8; border-color: #2d2850 !important; }
+.dark footer { color: #94a3b8; border-color: #2b2b33 !important; }
 
 /* ─── Score gradient legend (Zone / Region tabs) ─── */
 .score-legend-bar {
@@ -497,5 +503,5 @@ select, input[type="text"] { outline: none; }
   border-radius: 999px;
   background: linear-gradient(90deg, #ef4444, #f59e0b, #10b981);
 }
-.dark .score-legend { background: #221f4d !important; color: #94a3b8 !important; }
+.dark .score-legend { background: #29292f !important; color: #94a3b8 !important; }
 .dark .score-legend-bar { box-shadow: 0 0 0 1px rgba(255,255,255,0.10); }

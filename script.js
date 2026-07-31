@@ -21,7 +21,7 @@ const METRIC_ORDER = [
 let DATA = null;
 const CHARTS = {};
 const DOM = {};
-let darkMode = false;
+let darkMode = true; // default dark (Physics Wallah branding)
 
 /* ─── Sub-metric definitions (for pivot table) ─── */
 const SM_LIST = [
@@ -117,7 +117,7 @@ function onLoadError(err) {
       </div>
       <p class="font-bold text-lg" style="color:#1e293b">Could not load data</p>
       <p class="text-xs mt-2" style="color:#64748b">${err && err.message ? err.message : String(err)}</p>
-      <button onclick="location.reload()" class="mt-5" style="background:#4f46e5;color:#fff;border:none;padding:10px 24px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer">
+      <button onclick="location.reload()" class="mt-5" style="background:#e21b38;color:#fff;border:none;padding:10px 24px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer">
         <i class="fa-solid fa-rotate mr-2"></i>Retry
       </button>
     </div>`;
@@ -598,7 +598,7 @@ function renderHeatmap(f) {
   });
 
   let html = '<thead><tr><th class="text-left p-2 bg-slate-50 rounded-tl-xl" style="position:sticky;left:0;z-index:5">Region</th>';
-  metrics.forEach(m => { html += '<th class="p-2 bg-slate-50 text-center" style="color:#4f46e5;font-weight:600">' + m + '</th>'; });
+  metrics.forEach(m => { html += '<th class="p-2 bg-slate-50 text-center" style="color:#e21b38;font-weight:600">' + m + '</th>'; });
   html += '</tr></thead><tbody>';
   regions.forEach(r => {
     const cc = Object.keys(centerSets[r] || {}).length || 1;
@@ -757,7 +757,7 @@ function renderZoneTab(f) {
         </tr></thead><tbody>${centers.map(c =>
           '<tr class="border-t border-slate-50"><td class="p-2.5 font-medium">' + c.center +
           '</td><td class="p-2.5 text-center" style="' + scoreGradientStyle(c.totalScore, minScore, maxScore) + '">' + c.totalScore.toFixed(2) + '%' +
-          '</td><td class="p-2.5 text-center font-bold" style="color:#4f46e5">#' + c.zoneRank + '</td></tr>'
+          '</td><td class="p-2.5 text-center font-bold" style="color:#e21b38">#' + c.zoneRank + '</td></tr>'
         ).join('')}</tbody></table>
       </div>`;
     DOM.zoneGrid.appendChild(card);
@@ -794,7 +794,7 @@ function renderRegionTab(f) {
           '<tr class="border-t border-slate-50"><td class="p-2.5 font-medium">' + c.center +
           '</td><td class="p-2.5 text-center" style="' + scoreGradientStyle(c.totalScore, minScore, maxScore) + '">' + c.totalScore.toFixed(2) + '%' +
           '</td><td class="p-2.5 text-center" style="color:#64748b">' + c.zone +
-          '</td><td class="p-2.5 text-center font-bold" style="color:#4f46e5">#' + c.overallRank + '</td></tr>'
+          '</td><td class="p-2.5 text-center font-bold" style="color:#e21b38">#' + c.overallRank + '</td></tr>'
         ).join('')}</tbody></table>
       </div>`;
     DOM.regionGrid.appendChild(card);
@@ -1128,12 +1128,12 @@ function renderSubMetricCharts(f) {
     let headerHtml = '';
     if (f.metric === 'All') {
       headerHtml = '<div class="flex items-center gap-2 mb-3">' +
-        '<div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-bar"></i></div>' +
+        '<div class="w-7 h-7 rounded-lg bg-gradient-to-br from-red-500 to-red-800 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-bar"></i></div>' +
         '<h3 class="font-semibold text-sm">' + escapeHtml(metric) + '</h3>' +
         '<span class="text-xs text-slate-400 ml-auto">' + subLabels.length + ' sub-metrics</span></div>';
     } else {
       headerHtml = '<div class="flex items-center gap-2 mb-3">' +
-        '<div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-bar"></i></div>' +
+        '<div class="w-7 h-7 rounded-lg bg-gradient-to-br from-red-500 to-red-800 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-bar"></i></div>' +
         '<h3 class="font-semibold text-sm">Sub-Metric Breakdown</h3>' +
         '<span class="text-xs text-slate-400 ml-auto">' + subLabels.length + ' sub-metrics</span></div>';
     }
