@@ -11,29 +11,18 @@ const COL = {
   METRIC_ACH_PCT: 11, OVERALL_ACH_PCT: 12, BUSINESS_HEAD: 13, CENTER_HEAD: 14
 };
 
-const METRIC_ORDER = [
-  'Admissions AY26',
-  'Attendance',
-  'EMI Collection',
-  'Test Performance and Attendance'
-];
+/* ─── Metrics & Sub-metrics ───
+   These are NOT hardcoded. The sheet's "Metric" and "Sub-metric" columns are
+   the source of truth — whatever unique values appear there (in first-seen
+   order) become the metric list and, per metric, the sub-metric list. This
+   means adding/renaming/removing a metric or sub-metric in the sheet is
+   automatically reflected everywhere in the dashboard without code changes.
+   See buildMetricOrder_() and buildSmList_() below. */
 
 let DATA = null;
 const CHARTS = {};
 const DOM = {};
 let darkMode = true; // default dark (Physics Wallah branding)
-
-/* ─── Sub-metric definitions (for pivot table) ─── */
-const SM_LIST = [
-  {metric:'Admissions AY26', sub:'C2', key:'c2'},
-  {metric:'Attendance', sub:'DAS', key:'das'},
-  {metric:'Attendance', sub:'Inactivity', key:'inact'},
-  {metric:'EMI Collection', sub:'4th EMI', key:'emi4'},
-  {metric:'EMI Collection', sub:'1st EMI (Sep-Jun)', key:'emi1'},
-  {metric:'EMI Collection', sub:'2nd EMI', key:'emi2'},
-  {metric:'Test Performance and Attendance', sub:'Result', key:'result'},
-  {metric:'Test Performance and Attendance', sub:'Attendance', key:'tpaAtt'}
-];
 
 document.addEventListener('DOMContentLoaded', () => {
   cacheDOM();
@@ -61,6 +50,7 @@ function cacheDOM() {
   DOM.filterZone = document.getElementById('filterZone');
   DOM.filterCenter = document.getElementById('filterCenter');
   DOM.filterMetric = document.getElementById('filterMetric');
+  DOM.filterSubmetric = document.getElementById('filterSubmetric');
   DOM.resetFiltersBtn = document.getElementById('resetFiltersBtn');
   DOM.latestSearch = document.getElementById('latestSearch');
   DOM.exportCsvBtn = document.getElementById('exportCsvBtn');
@@ -187,16 +177,65 @@ function buildDashboardData(dataRows) {
   const dates = uniqueSorted_(rawRows.map(r => r.date));
   const latestDate = dates[dates.length - 1];
 
-  const meta = buildMeta_(rawRows, dates, latestDate);
-  const centerSummary = buildCenterSummary_(rawRows, latestDate);
+  const metricOrder = buildMetricOrder_(rawRows);
+  const smList = buildSmList_(rawRows);
+
+  const meta = buildMeta_(rawRows, dates, latestDate, metricOrder, smList);
+  const centerSummary = buildCenterSummary_(rawRows, latestDate, metricOrder);
   computeRanks_(centerSummary, 'totalScore', 'overallRank');
   computeZoneRanks_(centerSummary);
 
   const zoneWise = groupBy_(centerSummary, 'zone');
   const regionWise = groupBy_(centerSummary, 'region');
-  const latestTable = buildLatestTable_(rawRows, latestDate, centerSummary);
+  const latestTable = buildLatestTable_(rawRows, latestDate, centerSummary, smList);
 
   return { meta, rawRows, centerSummary, zoneWise, regionWise, latestTable };
+}
+
+/* ─── Dynamic metric order ───
+   Unique values from the Metric column, in first-appearance order in the
+   sheet. This becomes the canonical order used across KPIs, charts, the
+   heatmap and the trend lines. */
+function buildMetricOrder_(rawRows) {
+  const seen = new Set(), order = [];
+  rawRows.forEach(r => {
+    const m = r.metric;
+    if (m && !seen.has(m)) { seen.add(m); order.push(m); }
+  });
+  return order;
+}
+
+/* ─── Dynamic sub-metric list ───
+   Unique (Metric, Sub-metric) pairs, in first-appearance order, scoped per
+   metric. Each entry gets a stable, unique, machine-safe key derived from
+   its metric + sub-metric text (used as an object key throughout the pivot
+   table / export, since the underlying names can contain spaces, slashes,
+   parentheses, etc.). Callers that need "sub-metrics for metric X" can
+   filter this list by .metric — see renderSubMetricCharts() which already
+   does this per-row for chart drill-down. */
+function buildSmList_(rawRows) {
+  const seen = new Set(), list = [];
+  rawRows.forEach(r => {
+    if (!r.metric || !r.subMetric) return;
+    const pairKey = r.metric + '||' + r.subMetric;
+    if (seen.has(pairKey)) return;
+    seen.add(pairKey);
+    list.push({ metric: r.metric, sub: r.subMetric, key: uniqueSlug_(r.metric, r.subMetric) });
+  });
+  return list;
+}
+
+/* Machine-safe, collision-free key for a (metric, sub-metric) pair. */
+function slugify_(str) {
+  return String(str).toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'x';
+}
+const _slugKeysInUse_ = new Set();
+function uniqueSlug_(metric, sub) {
+  let base = slugify_(metric) + '__' + slugify_(sub);
+  let key = base, n = 2;
+  while (_slugKeysInUse_.has(key)) { key = base + '_' + n; n++; }
+  _slugKeysInUse_.add(key);
+  return key;
 }
 
 function buildRawRows_(dataRows) {
@@ -262,7 +301,7 @@ function formatDateFromCsv_(raw) {
   return s;
 }
 
-function buildMeta_(rawRows, dates, latestDate) {
+function buildMeta_(rawRows, dates, latestDate, metricOrder, smList) {
   const regions = uniqueSorted_(rawRows.map(r => r.region));
   const zones = uniqueSorted_(rawRows.map(r => r.zone)).sort(zoneComparator_);
   const centersMap = {};
@@ -273,7 +312,8 @@ function buildMeta_(rawRows, dates, latestDate) {
     lastUpdatedRaw: latestDate,
     lastUpdatedFormatted: formatDisplayDate_(latestDate),
     dates, regions, zones,
-    metrics: METRIC_ORDER,
+    metrics: metricOrder,
+    smList: smList,
     centersMeta: Object.keys(centersMap).sort().map(k => centersMap[k])
   };
 }
@@ -288,7 +328,7 @@ function zoneComparator_(a, b) {
   return (parseInt(String(a).replace(/\D/g, ''), 10) || 0) - (parseInt(String(b).replace(/\D/g, ''), 10) || 0);
 }
 
-function buildCenterSummary_(rawRows, latestDate) {
+function buildCenterSummary_(rawRows, latestDate, metricOrder) {
   const latestRows = rawRows.filter(r => r.date === latestDate);
   const byCenter = {};
   latestRows.forEach(r => {
@@ -297,17 +337,17 @@ function buildCenterSummary_(rawRows, latestDate) {
         center: r.center, region: r.region, zone: r.zone,
         businessHead: r.businessHead, centerHead: r.centerHead,
         totalScore: 0, overallRank: null, zoneRank: null,
-        metricScores: METRIC_ORDER.reduce((a, m) => { a[m] = 0; return a; }, {})
+        metricScores: metricOrder.reduce((a, m) => { a[m] = 0; return a; }, {})
       };
     }
     const c = byCenter[r.center];
     c.totalScore += (r.overallAchPct || 0);
-    if (c.metricScores.hasOwnProperty(r.metric)) c.metricScores[r.metric] += (r.metricAchPct || 0);
+    if (c.metricScores.hasOwnProperty(r.metric)) c.metricScores[r.metric] += (r.overallAchPct || 0);
   });
   return Object.keys(byCenter).map(k => {
     const c = byCenter[k];
     c.totalScore = round2_(c.totalScore);
-    METRIC_ORDER.forEach(m => { c.metricScores[m] = round2_(c.metricScores[m]); });
+    metricOrder.forEach(m => { c.metricScores[m] = round2_(c.metricScores[m]); });
     return c;
   });
 }
@@ -335,7 +375,7 @@ function groupBy_(arr, key) {
 }
 
 /* ─── Build pivot table rows ─── */
-function buildLatestTable_(rawRows, latestDate, centerSummary) {
+function buildLatestTable_(rawRows, latestDate, centerSummary, smList) {
   const latestRows = rawRows.filter(r => r.date === latestDate);
   const byCenter = {};
   latestRows.forEach(r => {
@@ -352,7 +392,7 @@ function buildLatestTable_(rawRows, latestDate, centerSummary) {
       return sm ? (sm[field] != null ? sm[field] : null) : null;
     };
     const row = { region: '', center: name, businessHead: '', centerHead: '', zone: '' };
-    SM_LIST.forEach(sm => {
+    smList.forEach(sm => {
       const src = r[sm.metric + '||' + sm.sub];
       if (src) {
         if (!row.region) row.region = src.region;
@@ -363,7 +403,7 @@ function buildLatestTable_(rawRows, latestDate, centerSummary) {
       row[sm.key + 'Target'] = get(sm.metric + '||' + sm.sub, 'target');
       row[sm.key + 'Cap'] = get(sm.metric + '||' + sm.sub, 'cap');
       row[sm.key + 'Achieved'] = get(sm.metric + '||' + sm.sub, 'achieved');
-      row[sm.key + 'AchPct'] = get(sm.metric + '||' + sm.sub, 'metricAchPct');
+      row[sm.key + 'AchPct'] = get(sm.metric + '||' + sm.sub, 'overallAchPct');
     });
     row.scorePct = s.totalScore;
     row.overallRank = s.overallRank;
@@ -389,7 +429,29 @@ function populateFilters() {
   fillSelect(DOM.filterRegion, [{ v: 'All', l: 'All Regions' }, ...DATA.meta.regions.map(r => ({ v: r, l: r }))], 'All');
   fillSelect(DOM.filterZone, [{ v: 'All', l: 'All Zones' }, ...DATA.meta.zones.map(z => ({ v: z, l: z }))], 'All');
   fillSelect(DOM.filterMetric, [{ v: 'All', l: 'All Metrics' }, ...DATA.meta.metrics.map(m => ({ v: m, l: m }))], 'All');
+  populateSubmetricFilter();
   populateCenterFilter();
+}
+
+/* Sub-Metric options cascade from the selected Metric — only sub-metrics that
+   actually belong to that metric (per DATA.meta.smList) are shown. When
+   "All Metrics" is selected, every sub-metric across all metrics is shown;
+   if the same sub-metric text exists under more than one metric, its label
+   is disambiguated with the metric name so the selection stays unambiguous. */
+function populateSubmetricFilter() {
+  const metricSel = DOM.filterMetric.value || 'All';
+  let entries = DATA.meta.smList;
+  if (metricSel !== 'All') entries = entries.filter(sm => sm.metric === metricSel);
+
+  const subTextCount = {};
+  entries.forEach(sm => { subTextCount[sm.sub] = (subTextCount[sm.sub] || 0) + 1; });
+
+  const opts = entries.map(sm => ({
+    v: sm.metric + '||' + sm.sub,
+    l: subTextCount[sm.sub] > 1 ? (sm.sub + ' (' + sm.metric + ')') : sm.sub
+  }));
+  const cur = DOM.filterSubmetric.value;
+  fillSelect(DOM.filterSubmetric, [{ v: 'All', l: 'All Sub-Metrics' }, ...opts], opts.some(o => o.v === cur) ? cur : 'All');
 }
 
 function populateCenterFilter() {
@@ -422,13 +484,16 @@ function wireEvents() {
   DOM.filterZone.addEventListener('change', () => { populateCenterFilter(); renderAll(); });
   DOM.filterDate.addEventListener('change', renderAll);
   DOM.filterCenter.addEventListener('change', renderAll);
-  DOM.filterMetric.addEventListener('change', renderAll);
+  DOM.filterMetric.addEventListener('change', () => { populateSubmetricFilter(); renderAll(); });
+  DOM.filterSubmetric.addEventListener('change', renderAll);
 
   DOM.resetFiltersBtn.addEventListener('click', () => {
     fillSelect(DOM.filterDate, DATA.meta.dates.map(d => ({ v: d, l: d })), DATA.meta.lastUpdatedRaw);
     DOM.filterRegion.value = 'All';
     DOM.filterZone.value = 'All';
     DOM.filterMetric.value = 'All';
+    populateSubmetricFilter();
+    DOM.filterSubmetric.value = 'All';
     populateCenterFilter();
     DOM.filterCenter.value = 'All';
     DOM.detailSearch.value = '';
@@ -442,7 +507,7 @@ function getFilters() {
   return {
     date: DOM.filterDate.value, region: DOM.filterRegion.value,
     zone: DOM.filterZone.value, center: DOM.filterCenter.value,
-    metric: DOM.filterMetric.value
+    metric: DOM.filterMetric.value, submetric: DOM.filterSubmetric.value
   };
 }
 
@@ -592,7 +657,7 @@ function renderHeatmap(f) {
   const sums = {}, centerSets = {};
   rows.forEach(r => {
     const k = r.region + '||' + r.metric;
-    sums[k] = (sums[k] || 0) + (r.metricAchPct || 0);
+    sums[k] = (sums[k] || 0) + (r.overallAchPct || 0);
     if (!centerSets[r.region]) centerSets[r.region] = {};
     centerSets[r.region][r.center] = true;
   });
@@ -625,17 +690,11 @@ function renderTrendChart(f) {
     (!center || r.center === center)
   );
 
-  const metricColors = {
-    'Admissions AY26':                { line: '#6366f1', fill: 'rgba(99,102,241,0.12)' },
-    'Attendance':                     { line: '#14b8a6', fill: 'rgba(20,184,166,0.12)' },
-    'EMI Collection':                 { line: '#f97316', fill: 'rgba(249,115,22,0.12)'  },
-    'Test Performance and Attendance':{ line: '#e11d48', fill: 'rgba(225,29,72,0.12)'   }
-  };
-
   const dates = DATA.meta.dates;
 
   // ─── Per-metric datasets ───
-  const datasets = METRIC_ORDER.map(metric => {
+  const palette = ['#6366f1', '#14b8a6', '#f97316', '#e11d48', '#8b5cf6', '#0ea5e9', '#22c55e', '#eab308'];
+  const datasets = DATA.meta.metrics.map((metric, mi) => {
     const byDate = {};
     dates.forEach(d => { byDate[d] = { sum: 0, count: 0 }; });
 
@@ -643,7 +702,7 @@ function renderTrendChart(f) {
       if (r.metric !== metric) return;
       const b = byDate[r.date];
       if (!b) return;
-      if (r.metricAchPct != null) { b.sum += r.metricAchPct; b.count++; }
+      if (r.overallAchPct != null) { b.sum += r.overallAchPct; b.count++; }
     });
 
     const values = dates.map(d => {
@@ -651,7 +710,8 @@ function renderTrendChart(f) {
       return b.count > 0 ? Math.round((b.sum / b.count) * 100) / 100 : null;
     });
 
-    const c = metricColors[metric] || { line: '#94a3b8', fill: 'rgba(148,163,184,0.12)' };
+    const hex = palette[mi % palette.length];
+    const c = { line: hex, fill: hexToRgba_(hex, 0.12) };
     return {
       label: metric,
       data: values,
@@ -672,7 +732,7 @@ function renderTrendChart(f) {
   dates.forEach(d => { allByDate[d] = { sum: 0, count: 0 }; });
   baseRows.forEach(r => {
     const b = allByDate[r.date]; if (!b) return;
-    if (r.metricAchPct != null) { b.sum += r.metricAchPct; b.count++; }
+    if (r.overallAchPct != null) { b.sum += r.overallAchPct; b.count++; }
   });
   const allValues = dates.map(d => {
     const b = allByDate[d];
@@ -840,24 +900,25 @@ function renderLatestTable() {
   // Only 4 frozen: #, Region, Center, Zone
   const ID_COLS = ['#','Region','Center','Zone'];
 
-  // Target columns — dynamically generated from SM_LIST like Achieved/Ach%
+  // Target columns — dynamically generated from DATA.meta.smList like Achieved/Ach%
+  const smList = DATA.meta.smList;
   function makeTgtFields() {
     var fields = [];
-    SM_LIST.forEach(function(sm) {
+    smList.forEach(function(sm) {
       fields.push({group:'Targets', metric:sm.metric, sub:sm.sub, field:'Target', key:sm.key+'Target'});
       fields.push({group:'Targets', metric:sm.metric, sub:sm.sub, field:'Cap', key:sm.key+'Cap'});
     });
     return fields;
   }
-  const tgtFields = makeTgtFields(); // 16 entries (8 × 2) // now 16, not 13
+  const tgtFields = makeTgtFields(); // 2 entries per sub-metric (Target + Cap)
 
-  // Achieved columns (8)
-  const achFields = SM_LIST.map(sm => ({
+  // Achieved columns (1 per sub-metric)
+  const achFields = smList.map(sm => ({
     group:'Achieved', metric:sm.metric, sub:sm.sub, field:'Achieved', key:sm.key+'Achieved'
   }));
 
-  // Ach% columns (8)
-  const pctFields = SM_LIST.map(sm => ({
+  // Ach% columns (1 per sub-metric)
+  const pctFields = smList.map(sm => ({
     group:'Ach. %', metric:sm.metric, sub:sm.sub, field:'%', key:sm.key+'AchPct', isPct:true
   }));
 
@@ -1032,18 +1093,19 @@ function exportCsv() {
     return true;
   });
 
-  const tgtHeaders = SM_LIST.flatMap(sm => [sm.sub + ' (Target)', sm.sub + ' (Cap)']);
-  const achHeaders = SM_LIST.map(sm => sm.sub + ' (Achieved)');
-  const pctHeaders = SM_LIST.map(sm => sm.sub + ' (%)');
+  const smList = DATA.meta.smList;
+  const tgtHeaders = smList.flatMap(sm => [sm.sub + ' (Target)', sm.sub + ' (Cap)']);
+  const achHeaders = smList.map(sm => sm.sub + ' (Achieved)');
+  const pctHeaders = smList.map(sm => sm.sub + ' (%)');
   const headers = ['Region', 'Center', 'Zone', 'Bus. Head', 'Center Head',
     ...tgtHeaders, ...achHeaders, ...pctHeaders,
     'Score %', 'Rank', 'Z-Rank'];
 
   const csvRows = [headers.join(',')];
   rows.forEach(r => {
-    const tgtVals = SM_LIST.flatMap(sm => [r[sm.key + 'Target'] ?? '', r[sm.key + 'Cap'] ?? '']);
-    const achVals = SM_LIST.map(sm => r[sm.key + 'Achieved'] ?? '');
-    const pctVals = SM_LIST.map(sm => r[sm.key + 'AchPct'] != null ? r[sm.key + 'AchPct'].toFixed(1) + '%' : '');
+    const tgtVals = smList.flatMap(sm => [r[sm.key + 'Target'] ?? '', r[sm.key + 'Cap'] ?? '']);
+    const achVals = smList.map(sm => r[sm.key + 'Achieved'] ?? '');
+    const pctVals = smList.map(sm => r[sm.key + 'AchPct'] != null ? r[sm.key + 'AchPct'].toFixed(1) + '%' : '');
     const vals = [r.region, r.center, r.zone, r.businessHead, r.centerHead,
       ...tgtVals, ...achVals, ...pctVals,
       r.scorePct != null ? r.scorePct.toFixed(1) + '%' : '',
@@ -1073,9 +1135,21 @@ function renderSubMetricCharts(f) {
   });
   container.innerHTML = '';
 
+  // Sub-Metric filter value is a compound "metric||sub" key (see
+  // populateSubmetricFilter). When set, it pins the drill-down to that exact
+  // metric and, within it, that single sub-metric.
+  let pinnedSub = null; // { metric, sub } or null
+  if (f.submetric && f.submetric !== 'All') {
+    const parts = f.submetric.split('||');
+    pinnedSub = { metric: parts[0], sub: parts.slice(1).join('||') };
+  }
+
   let metrics = [];
   let labelPrefix = '';
-  if (f.metric === 'All') {
+  if (pinnedSub) {
+    metrics = [pinnedSub.metric];
+    labelPrefix = pinnedSub.metric + ' \u2014 ' + pinnedSub.sub;
+  } else if (f.metric === 'All') {
     metrics = DATA.meta.metrics;
     labelPrefix = 'All Metrics';
   } else {
@@ -1106,6 +1180,7 @@ function renderSubMetricCharts(f) {
     metricRows.forEach(r => {
       const sub = String(r.subMetric || 'Overall').trim();
       if (!sub || sub === 'None' || sub === '-') return;
+      if (pinnedSub && sub !== pinnedSub.sub) return;
       if (!bySub[sub]) bySub[sub] = { targetSum: 0, capSum: 0, achievedSum: 0, count: 0 };
       bySub[sub].targetSum += (r.target  != null ? r.target : 0);
       bySub[sub].capSum    += (r.cap     != null ? r.cap : 0);
@@ -1187,6 +1262,11 @@ function renderSubMetricCharts(f) {
   }
 }
 
+function hexToRgba_(hex, alpha) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16), g = parseInt(h.substring(2, 4), 16), b = parseInt(h.substring(4, 6), 16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
 function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
