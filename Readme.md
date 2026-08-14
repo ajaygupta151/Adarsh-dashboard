@@ -1,257 +1,364 @@
-# Adarsh Vidyapeeth Command Center — Technical README
+# Adarsh Vidyapeeth Command Center — Explained Simply
 
-A single-page analytics dashboard (Physics Wallah branding) that reads live data
-from a **published Google Sheet CSV**, transforms it in the browser, and
-renders KPIs, charts, a heatmap, zone/region breakdowns, and a detailed
-Excel-style data grid — with CSV export.
-
-No backend. Everything (fetch → parse → compute → render) happens in
-`script.js`, in the browser, on every page load / refresh.
+This document explains the whole dashboard **like you know nothing about
+coding**. Every section has a real-life analogy, a plain-English
+explanation, and a worked example with real numbers. If you read this
+top to bottom, you will understand exactly what every number on the
+screen means and where it comes from.
 
 ---
 
-## 1. Files
+## 0. The Big Picture (read this first)
 
-| File | Responsibility |
-|---|---|
-| `index.html` | DOM structure only — header, filter bar, 4 tabs (Overview / Zone Wise / Region Wise / Detailed Data). No business logic. |
-| `style.css` | Visual styling — glassmorphism header, KPI cards, heatmap colors, Excel-style detail grid, score-gradient helper classes. |
-| `script.js` | Everything else: data fetch, CSV parsing, all derived metrics, all chart/table rendering, filters, CSV export. |
+Imagine a **school** with many **centers** (branches). Every day, someone
+writes down in a big Excel sheet how each center is doing — how many
+students admitted, how many attended class, how much fee (EMI) was
+collected, how well they did in tests.
 
-Third-party libraries (loaded via CDN in `index.html`):
-- **Tailwind CSS v4** (browser build) — utility styling
-- **Chart.js 4.4.7** — all charts
-- **PapaParse 5.4.1** — CSV parsing
-- **Font Awesome 6.7.2** — icons
+This dashboard is like a **smart report card generator**:
 
----
+1. It **reads** that Excel sheet (from Google Sheets, over the internet).
+2. It **calculates** scores, ranks, and averages.
+3. It **draws** pictures (charts, tables, colors) so a manager can look at
+   it for 5 seconds and know "which center is doing great, which one needs
+   help."
 
-## 2. Data Source & Column Mapping
-
-Data comes from one published Google Sheet, fetched as CSV:
-
-```
-CSV_URL = 'https://docs.google.com/spreadsheets/.../pub?...&output=csv'
-```
-
-`loadData()` tries, in order (first success wins):
-1. Direct fetch (cache-busted with `?_cb=<timestamp>`)
-2. `https://api.allorigins.win/raw?url=...` (CORS proxy fallback #1)
-3. `https://corsproxy.io/?url=...` (CORS proxy fallback #2)
-
-Each attempt has a 15-second timeout (`fetchWithTimeout`). If all three fail,
-`onLoadError()` shows a retry screen.
-
-### Column order (must match the sheet exactly)
-
-```js
-const COL = {
-  DATE: 0, CENTER: 1, REGION: 2, ZONE: 3, METRIC: 4, SUBMETRIC: 5,
-  TARGET: 6, CAP: 7, ACHIEVED: 8, METRIC_WEIGHT: 9, OVERALL_WEIGHT: 10,
-  METRIC_ACH_PCT: 11, OVERALL_ACH_PCT: 12, BUSINESS_HEAD: 13, CENTER_HEAD: 14
-};
-```
-
-| Index | Sheet header |
-|---|---|
-| 0 | Updated Date |
-| 1 | Center Name |
-| 2 | Region |
-| 3 | Zone |
-| 4 | Metric |
-| 5 | Sub-metric |
-| 6 | Target |
-| 7 | Min/Max Cap |
-| 8 | Achieved |
-| 9 | Sub-metric Weightage |
-| 10 | Overall Weightage |
-| 11 | Sub-metric Achievement % |
-| 12 | **Overall Achievement %** ← used everywhere achievement is *displayed* |
-| 13 | Business Head |
-| 14 | Center Head |
-
-> **Important rule:** wherever the dashboard shows an achievement percentage
-> (KPIs, heatmap, trend lines, per-metric scores, detailed-grid "Ach. %"
-> columns, CSV export), it always reads `overallAchPct` (column 12 — *Overall
-> Achievement %*). `metricAchPct` (column 11 — *Sub-metric Achievement %*) is
-> parsed into memory but never used for display, by design.
+That's it. Everything else in this document is just "how" it does that.
 
 ---
 
-## 3. Data Build Pipeline (`buildDashboardData()`)
+## 1. The Three Files — What Each One Is
 
-Runs once per successful fetch. Order of operations:
+Think of building a dashboard like building a car:
 
-1. **`buildRawRows_(dataRows)`** — converts every CSV row into a clean object:
-   `{ date, center, region, zone, metric, subMetric, target, cap, achieved,
-   metricWeight, overallWeight, metricAchPct, overallAchPct, businessHead,
-   centerHead }`. Rows without a center name or a parseable date are dropped.
-   - `sanitizeValue_()` cleans numeric/percent strings (`"85.3%"` → `85.3`,
-     `"-"`/`"NA"`/`""` → `null`).
-   - `formatDateFromCsv_()` normalizes `DD/MM/YYYY`, `MM/DD/YYYY`, or native
-     date strings into `YYYY-MM-DD`.
-
-2. **`buildMetricOrder_(rawRows)`** *(dynamic, not hardcoded)* — walks all
-   rows and collects unique `metric` values in first-appearance order. This
-   becomes the canonical metric list used everywhere (KPI metric filter,
-   heatmap columns, trend chart lines, sub-metric drill-down groups).
-
-3. **`buildSmList_(rawRows)`** *(dynamic, not hardcoded)* — walks all rows
-   and collects unique `(metric, subMetric)` pairs in first-appearance
-   order. Each pair gets a stable, collision-free machine key via
-   `uniqueSlug_()` (e.g. `admissions_ay26__c2`), used internally as an
-   object-property key throughout the pivot table and CSV export (since raw
-   sub-metric text can contain spaces, slashes, parentheses, etc.).
-   - Adding, renaming, or removing a metric/sub-metric in the sheet requires
-     **zero code changes** — it's picked up automatically on next load.
-
-4. **`buildMeta_()`** — assembles `dates`, `regions`, `zones` (unique,
-   sorted; zones sorted numerically via `zoneComparator_`), the dynamic
-   `metrics` and `smList` from steps 2–3, and `centersMeta` (one entry per
-   center with its region/zone/heads, for the Center filter).
-
-5. **`buildCenterSummary_(rawRows, latestDate, metricOrder)`** — filters to
-   **only the latest date's rows**, and for each center computes:
-   - `totalScore` = sum of `overallAchPct` across all that center's rows on
-     the latest date
-   - `metricScores[metric]` = sum of `overallAchPct` restricted to rows of
-     that metric (same source column, just scoped)
-
-6. **`computeRanks_()`** — sorts centers by `totalScore` descending, assigns
-   `overallRank` (ties share a rank, e.g. two centers tied at rank 3 → next
-   rank is 5, not 4).
-
-7. **`computeZoneRanks_()`** — same ranking logic but computed independently
-   *within each zone* → `zoneRank`.
-
-8. **`groupBy_()`** — produces `zoneWise` and `regionWise` lookups (center
-   summaries grouped by zone / region, each group pre-sorted by score).
-
-9. **`buildLatestTable_(rawRows, latestDate, centerSummary, smList)`** —
-   builds the pivot used by the Detailed Data tab and CSV export: one row
-   per center, with `Target`, `Cap`, `Achieved`, and `Ach%` (from
-   `overallAchPct`) for **every** sub-metric in `smList`, plus that center's
-   `scorePct` / `overallRank` / `zonalRank`.
-
-Final shape returned and stored in the global `DATA`:
-```js
-{ meta, rawRows, centerSummary, zoneWise, regionWise, latestTable }
-```
-
----
-
-## 4. Filters
-
-All filter state is read via `getFilters()`:
-```js
-{ date, region, zone, center, metric, submetric }
-```
-
-| Filter | Populated by | Cascades from |
+| File | Car part | What it actually does |
 |---|---|---|
-| Date | `DATA.meta.dates` | — |
-| Region | `DATA.meta.regions` | — |
-| Zone | `DATA.meta.zones` | — |
-| Center | `populateCenterFilter()` | Region + Zone (only shows centers matching both) |
-| Metric | `DATA.meta.metrics` (dynamic) | — |
-| **Sub-Metric** *(new)* | `populateSubmetricFilter()` | Metric (only shows that metric's sub-metrics; if "All Metrics", shows every sub-metric, disambiguated by metric name if the same sub-metric text exists under more than one metric) |
+| `index.html` | The **body/frame** of the car | Just decides "here's a box for the header, here's a box for filters, here's a box for the chart." It has NO brains — it doesn't calculate anything. |
+| `style.css` | The **paint job** | Decides colors, fonts, spacing, rounded corners, red/green highlighting. Makes it look nice. Has NO logic either. |
+| `script.js` | The **engine + driver's brain** | ALL the thinking happens here: downloading data, doing math, deciding what color a score should be, drawing charts. This is the file that matters for "logic." |
 
-- The Sub-Metric filter's option **value** is a compound key
-  `"<Metric>||<SubMetric>"` so selection is unambiguous even across metrics
-  that share a sub-metric name.
-- Changing **Metric** re-populates the Sub-Metric dropdown
-  (`populateSubmetricFilter()`) before re-rendering.
-- **Reset** button restores every filter to `'All'` / latest date.
-- The Sub-Metric filter currently affects only the **Sub-Metric
-  Drill-Down** section (see §5) — it pins that section to one exact
-  metric + sub-metric pair. KPIs, the heatmap, and the trend chart are
-  intentionally unaffected by Metric/Sub-Metric selection (same as the
-  original Metric filter's scope), so overall performance numbers stay
-  comparable regardless of which metric you're inspecting.
+So when you ask "where is the logic for X," the answer is **always**
+`script.js`.
 
 ---
 
-## 5. Section-by-Section Logic
+## 2. Where Does the Data Come From?
 
-### Overview tab
+There is one Google Sheet. Someone (or an automated process) keeps adding
+rows to it — like a diary, one row = one fact about one center on one
+date for one metric's one sub-part.
 
-| Element | Function | Formula / Logic |
-|---|---|---|
-| Top Center / Bottom Center KPI | `renderKpis()` → `computeScoresForDate()` | Filters `rawRows` to the selected date (+ region/zone/center filters), sums `overallAchPct` per center, sorts, takes first/last. |
-| Avg Score KPI | `renderKpis()` | Mean of the same per-center scores. |
-| Best Region / Best Zone KPI | `renderKpis()` | Groups the same scores by region/zone, takes the group with the highest average. |
-| Insights bar (🌟 🎯 📈) | `renderKpis()` | Restates best region/zone; "X/N centers above 60%" — 60% is a fixed threshold in code. |
-| Top 10 vs Bottom 10 chart | `renderTopBottomChart()` | Same per-center scores, sorted; first 10 = top (green), last 10 reversed = bottom (red). Horizontal bar chart. |
-| Zone Performance chart | `renderZoneComparisonChart()` | Same scores grouped by zone, averaged, sorted by zone number. |
-| Region × Metric Heatmap | `renderHeatmap()` | For the selected date, average `overallAchPct` per `(region, metric)` cell, divided by that region's unique center count. Color bands: ≥60% green / ≥30% amber / else red (`heatClass()`). |
-| Historical Trend chart | `renderTrendChart()` | For **every** date (not just latest), one line per metric = average `overallAchPct` of that metric's rows on that date (region/zone/center filters apply, metric filter does not). Plus a combined "All Metrics" line/area. Colors are assigned from a fixed palette cycling by metric index (`palette[]` + `hexToRgba_()`), since the metric list itself is dynamic. |
-| Sub-Metric Drill-Down charts | `renderSubMetricCharts()` | For the selected date + region/zone/center, groups rows by metric (or the one pinned metric) then by sub-metric, averaging raw `target` / `cap` / `achieved` (NOT percentages) per sub-metric. Renders one grouped bar chart per metric card. The Sub-Metric filter, when set, restricts this to a single sub-metric bar within a single metric's card. |
+The sheet is "published to the web" as a CSV file (CSV = a simple text
+file, like a table, that any program can read — think of it as Excel's
+plain-text cousin).
 
-### Zone Wise / Region Wise tabs
+### Every row in the sheet looks like this:
 
-- `renderZoneTab()` / `renderRegionTab()` use `filteredCenterSummary()` (the
-  latest-date `centerSummary`, filtered by region/zone/center) grouped by
-  zone/region respectively.
-- Centers within each card are sorted by their `zoneRank` (Zone tab) or
-  `overallRank` (Region tab).
-- Score cells use `scoreGradientStyle()` — a red→amber→green linear
-  interpolation based on the min/max score **across the entire current
-  filter selection**, so colors stay visually consistent across all cards on
-  screen (not per-card min/max).
+| Column # | Column Name | Example value | In plain English |
+|---|---|---|---|
+| 1 | Updated Date | `12/08/2026` | Which day this fact is about |
+| 2 | Center Name | `Prayagraj Center` | Which branch |
+| 3 | Region | `North` | Group of zones |
+| 4 | Zone | `Zone 3` | Group of centers |
+| 5 | Metric | `Attendance` | The big category (e.g. Attendance, Admissions, EMI Collection) |
+| 6 | Sub-metric | `DAS` | The specific thing inside that category |
+| 7 | Target | `100` | What number they were SUPPOSED to hit |
+| 8 | Min/Max Cap | `120` | The ceiling/floor limit for that number |
+| 9 | Achieved | `85` | What number they ACTUALLY hit |
+| 10 | Sub-metric Weightage | `10%` | How much this one sub-part matters |
+| 11 | Overall Weightage | `25%` | How much the whole metric matters |
+| 12 | Sub-metric Achievement % | `85%` | Achieved ÷ Target, for just this sub-part |
+| 13 | **Overall Achievement %** | `82%` | The "official" percentage used for scoring — ⭐ **this is the ONLY achievement number the dashboard ever shows anywhere** |
+| 14 | Business Head | `Mr. Sharma` | Who's in charge (business side) |
+| 15 | Center Head | `Ms. Verma` | Who's in charge (center side) |
 
-### Detailed Data tab
-
-- `renderLatestTable()` filters `DATA.latestTable` by region/zone/center and
-  a free-text search box (matches center/region/zone/business head/center
-  head, case-insensitive, debounced 150ms).
-- Renders a 4-row header (spreadsheet column letters → group `Targets /
-  Achieved / Ach. %` → metric name → sub-metric/field name) and a frozen
-  `#/Region/Center/Zone` column set, Excel-style.
-- Columns are built dynamically from `DATA.meta.smList` — 2 columns
-  (Target, Cap) per sub-metric under "Targets", 1 column (Achieved) per
-  sub-metric under "Achieved", 1 column (%) per sub-metric under "Ach. %",
-  followed by Score / Rank / Z-Rank.
-- Cell coloring: `pctSpan()` — ≥100% green, ≥75% amber, ≥50% orange, else
-  red.
-
-### CSV Export (`exportCsv()`)
-
-- Exports the same region/zone/center-filtered rows from `DATA.latestTable`.
-- Headers and per-row values are generated from `DATA.meta.smList`
-  dynamically (Target/Cap/Achieved/% per sub-metric), so the exported file
-  always matches whatever metrics/sub-metrics currently exist in the sheet.
+> 🎯 **Golden Rule of this dashboard:** whenever you see a "%" achievement
+> number ANYWHERE on screen — a KPI card, a chart, a table cell, the CSV
+> download — it always comes from column 13 (**Overall Achievement %**).
+> Column 12 (Sub-metric Achievement %) is read from the sheet but is
+> never shown to you. This was a specific decision made in the code.
 
 ---
 
-## 6. Ranking Rules
+## 3. How the Code Reads the Sheet (step-by-step, like a recipe)
 
-- **Overall Rank**: centers sorted by `totalScore` (sum of `overallAchPct`
-  on the latest date) descending. Equal scores share the same rank; the
-  next distinct score continues from `position + 1` (standard competition
-  ranking, e.g. 1, 2, 2, 4).
-- **Zonal Rank**: identical logic, computed independently within each zone.
+Think of `script.js` as following a recipe every time the page loads:
+
+### Step 1 — Go fetch the sheet
+`loadData()` — like sending someone to go download the Excel file from the
+internet. Since browsers sometimes block cross-website downloads (called
+"CORS"), the code tries 3 different doors to get in:
+1. Try the direct link.
+2. If that door is locked, try door #2 (a helper website called `allorigins`).
+3. If that's locked too, try door #3 (`corsproxy.io`).
+
+If all 3 doors are locked, it shows you a "Could not load data — Retry"
+screen.
+
+### Step 2 — Turn the raw text into a table
+A library called **PapaParse** turns the CSV text into rows and columns
+(like opening it in Excel).
+
+### Step 3 — Clean up every row
+`buildRawRows_()` — imagine a teacher checking every row for messy
+handwriting:
+- `"85.3%"` → cleaned into the number `85.3`
+- `"-"` or `"NA"` or blank → cleaned into "nothing" (`null`)
+- Dates like `12/08/2026` get standardized to one format so they can be
+  sorted and compared.
+- Rows with no center name or unreadable date are thrown away (they're
+  junk/incomplete rows).
+
+### Step 4 — Figure out what Metrics exist (automatically!)
+`buildMetricOrder_()` — the code looks at **every single row's Metric
+column** and makes a list of every DIFFERENT value it sees, in the order
+it first saw them. It does NOT have a fixed list written in the code.
+
+**Example:** if the sheet has rows with Metric = `Admissions`, `Attendance`,
+`Admissions`, `EMI Collection`, `Attendance`... the code notices only 3
+unique values and remembers them in this order:
+```
+["Admissions", "Attendance", "EMI Collection"]
+```
+If tomorrow someone adds a brand-new metric called `Digital Marketing` to
+the sheet, the very next time the dashboard loads, it will automatically
+show up everywhere — filters, charts, tables — **with zero code changes.**
+
+### Step 5 — Figure out what Sub-metrics exist per Metric (automatically!)
+`buildSmList_()` — same idea, but now it looks at **pairs**: (Metric,
+Sub-metric) together.
+
+**Example:**
+```
+Attendance      → DAS
+Attendance      → Inactivity
+EMI Collection  → 1st EMI
+EMI Collection  → 2nd EMI
+EMI Collection  → 4th EMI
+```
+So if you pick the "Attendance" filter, you'll only ever see "DAS" and
+"Inactivity" as sub-metric options — never "1st EMI," because that
+sub-metric doesn't belong to Attendance.
+
+### Step 6 — Work out the "last updated" date and build a master list
+`buildMeta_()` — collects: every unique date, every unique region, every
+unique zone, every unique center (with its region/zone/heads attached),
+plus the dynamic metric list and sub-metric list from Steps 4–5.
+
+### Step 7 — Calculate each center's score (for the LATEST date only)
+`buildCenterSummary_()` — this is the heart of the scoring.
+
+Imagine center "Prayagraj" has 8 rows on the latest date (one row per
+sub-metric, e.g. C2, DAS, Inactivity, 4th EMI, 1st EMI, 2nd EMI, Result,
+Attendance). The code just **adds up the Overall Achievement %** column
+from all 8 of those rows:
+
+```
+totalScore = row1.overallAchPct + row2.overallAchPct + ... + row8.overallAchPct
+```
+
+It ALSO keeps a per-metric subtotal (`metricScores`), so you can see "how
+much of my total score came from just the Attendance metric."
+
+**Worked example:**
+
+| Sub-metric | Overall Ach % |
+|---|---|
+| C2 (Admissions) | 22 |
+| DAS (Attendance) | 18 |
+| Inactivity (Attendance) | 15 |
+| 4th EMI | 10 |
+| 1st EMI | 12 |
+| 2nd EMI | 8 |
+| Result | 9 |
+| Attendance (Test Perf.) | 6 |
+| **Total Score** | **100** |
+
+That `100` becomes this center's `totalScore` for the day.
+
+### Step 8 — Rank the centers
+`computeRanks_()` — sort all centers by `totalScore`, biggest first. Give
+rank 1 to the highest. If two centers tie exactly, they both get the same
+rank number (like a tied race), and the next center's rank skips ahead
+(1, 2, 2, 4 — not 1,2,2,3).
+
+`computeZoneRanks_()` — does the exact same thing, but separately for each
+zone (so a center can be "Rank 1 in its Zone" even if it's "Rank 15
+Overall").
+
+### Step 9 — Build the giant detail table
+`buildLatestTable_()` — makes one row per center with EVERY sub-metric's
+Target / Cap / Achieved / Ach% side by side — like a giant spreadsheet
+pivot. This powers the "Detailed Data" tab and the CSV download.
 
 ---
 
-## 7. Theme
+## 4. The Filter Bar — How Filters Talk to Each Other
 
-- `darkMode` defaults to `true` (Physics Wallah dark branding).
-- `toggleTheme()` flips the `.dark` class on `<html>` (Tailwind v4
-  class-based dark variant) and re-runs `renderAll()` so Chart.js grid/tick
-  colors (`chartGridColor()`, `chartTickColor()`) and the score-gradient
-  colors adapt.
+Think of filters like a **funnel**: each one narrows down which rows of
+data get used in every calculation.
+
+```
+Date  →  Region  →  Zone  →  Center
+                                 (Center only shows options that match
+                                  the chosen Region AND Zone)
+
+Metric  →  Sub-Metric
+              (Sub-Metric only shows options that belong to
+               the chosen Metric)
+```
+
+**Real example:** If you pick Region = "North" and Zone = "Zone 3," the
+Center dropdown will ONLY list centers that are actually in North + Zone
+3 — it won't show you a center from "South, Zone 1."
+
+Same idea for Metric → Sub-metric: pick Metric = "EMI Collection," and the
+Sub-Metric dropdown will only offer "1st EMI," "2nd EMI," "4th EMI" — not
+"DAS" (which belongs to Attendance, a different metric).
+
+> **New addition:** the Sub-Metric filter didn't exist before — it's new.
+> When you pick a specific sub-metric, the "Sub-Metric Drill-Down" chart
+> section zooms in to show ONLY that one sub-metric's bar (instead of all
+> sub-metrics under that metric).
+
+**Reset button:** puts every filter back to "All" / the latest date, like
+clearing all funnels at once.
 
 ---
 
-## 8. Extensibility Notes
+## 5. Every Number/Chart on Screen, Explained
 
-- **Adding a new Metric or Sub-Metric**: just add rows with the new value in
-  the sheet's Metric/Sub-metric columns — no code change needed. It will
-  appear in the Metric filter, Sub-Metric filter (scoped correctly), heatmap
-  columns, trend chart lines (colored from the fixed palette, cycling if
-  there are more metrics than palette colors), and every table/export.
-- **Changing which column drives "achievement"**: currently hardcoded to
-  `overallAchPct` (sheet column 12) everywhere it's displayed — search for
-  `overallAchPct` in `script.js` to see every usage site.
-- **Column order**: if the sheet's column order ever changes, only the
-  `COL` object at the top of `script.js` needs updating.
+### 🏆 "Top Center" and "Bottom Center" KPI cards
+Take all centers' `totalScore` (from Step 7 above, filtered by whatever
+Region/Zone/Center you've picked), sort them, show the #1 (highest) and
+the last (lowest).
+
+### 📊 "Avg Score" KPI
+Add up all centers' scores and divide by how many centers there are —
+just a regular average, like a class average on a test.
+
+### 🌍 "Best Region" / "Best Zone" KPI
+Group all centers by their Region (or Zone), average the scores within
+each group, and show whichever group has the highest average.
+
+### ⭐ Insights bar
+Just restates the Best Region/Zone in a sentence, plus counts how many
+centers scored above 60% ("14/20 centers above target," for example). The
+60% line is a fixed rule written into the code.
+
+### 📈 Top 10 vs Bottom 10 chart
+A horizontal bar chart. Same sorted list of scores as above — just the
+top 10 shown in green bars, bottom 10 shown in red bars, so you can
+instantly see who's winning and who's struggling.
+
+### 🗺️ Zone Performance chart
+Same idea as "Best Zone" KPI, but shown as a bar for EVERY zone (not just
+the winner) — so you can compare all zones side-by-side.
+
+### 🔥 Region × Metric Heatmap
+A grid: rows = regions, columns = metrics. Each cell = the average
+Overall Achievement % for that region, for that metric only. Color rule:
+- 🟢 Green if ≥ 60%
+- 🟡 Amber if ≥ 30%
+- 🔴 Red if below 30%
+
+So you can spot instantly, e.g., "South region is red on EMI Collection —
+that's a problem area."
+
+### 📉 Historical Trend chart
+Unlike everything above (which only looks at the LATEST date), this chart
+looks at **every single date** in the sheet and draws a line over time —
+one line per metric, plus a thick combined line for "All Metrics." This
+answers "are we improving or declining over the weeks/months?" Line
+colors are auto-assigned from a fixed color list, cycling through if there
+are more metrics than colors.
+
+### 🧱 Sub-Metric Drill-Down charts
+For the metric(s) you've selected, groups rows by sub-metric and draws 3
+bars per sub-metric: Target, Min/Max Cap, and Achieved — as **raw numbers**
+(not percentages) so you can see the actual figures, e.g., "Target was
+100 students, we achieved 85." If you also pick a Sub-Metric filter, it
+zooms into just that one sub-metric.
+
+### 🏢 Zone Wise tab / Region Wise tab
+Same centers, same scores — just organized into cards grouped by Zone or
+by Region, sorted best-to-worst within each card. Score numbers are
+color-shaded from red (low) to green (high) — like a heat gradient, so
+your eye is drawn to the reds first.
+
+### 📋 Detailed Data tab
+The full Excel-style pivot table — every center as a row, every
+sub-metric's Target/Cap/Achieved/% as columns, built dynamically (adds
+new columns automatically if the sheet gets a new sub-metric). Has a
+search box (type a center name, region, zone, or head's name to filter
+instantly) and color-coded percentage cells (green ≥100%, amber ≥75%,
+orange ≥50%, red below that).
+
+### ⬇️ Export CSV button
+Downloads exactly what's shown in the Detailed Data tab (respecting your
+current filters) as a `.csv` file you can open in Excel.
+
+---
+
+## 6. Ranking Rules (in plain words)
+
+Imagine a race:
+- Whoever has the highest score finishes 1st.
+- If two people cross the finish line at the EXACT same score, they both
+  get "Rank 1" (tied) — nobody is arbitrarily picked as better.
+- The next runner after a tie doesn't get "Rank 2" — they get the rank
+  matching their actual position (so after two people tie for 1st, the
+  next one is Rank 3, not Rank 2).
+
+This "Overall Rank" happens across ALL centers. "Zone Rank" does the exact
+same race, but only among centers in the same zone (so you can be #1 in
+your zone while being #15 overall).
+
+---
+
+## 7. Dark Mode / Light Mode
+
+There's a moon/sun button. Clicking it just flips a color theme (dark
+background vs light background) and re-draws all the charts so their grid
+lines and text stay readable in either mode. No data changes — purely
+cosmetic.
+
+---
+
+## 8. "What If Someone Adds a New Metric to the Sheet Tomorrow?"
+
+Nothing in `script.js` needs to change. Here's why, step by step:
+
+1. Someone adds new rows to the Google Sheet with `Metric = "Digital
+   Marketing"` and some sub-metrics under it.
+2. Next time anyone opens the dashboard (or hits Refresh), `loadData()`
+   downloads the updated sheet.
+3. `buildMetricOrder_()` notices `"Digital Marketing"` is a new unique
+   value and adds it to the metric list automatically.
+4. `buildSmList_()` notices its sub-metrics and adds those too.
+5. Every dropdown, chart, heatmap column, and table column that uses
+   `DATA.meta.metrics` or `DATA.meta.smList` picks it up automatically.
+
+This is the entire point of making metrics/sub-metrics **dynamic** instead
+of hardcoded — the code adapts to the DATA, instead of someone having to
+edit the CODE every time the business adds a new metric.
+
+---
+
+## 9. Quick Glossary
+
+| Term | Meaning |
+|---|---|
+| CSV | A plain-text spreadsheet format, like Excel but simpler |
+| KPI | "Key Performance Indicator" — a single important number, shown in a small card |
+| Metric | A big category being measured (e.g. Attendance) |
+| Sub-metric | A specific piece inside a Metric (e.g. DAS is a sub-metric of Attendance) |
+| Overall Achievement % | The official score number for a row — the ONLY percentage the dashboard displays |
+| Heatmap | A color-coded grid, red = bad, green = good |
+| Dynamic | Means "figured out automatically from the data," not typed into the code by hand |
+| Filter | A dropdown that narrows down which rows are used in calculations |
+| Rank | A center's position compared to others, based on score |
+| CORS | A browser security rule that sometimes blocks fetching data from another website directly |
+
+---
+
