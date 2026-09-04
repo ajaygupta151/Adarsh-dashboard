@@ -30,6 +30,16 @@ body { background: #f5f2f2; margin: 0; }
 .kpi-card { transition: all 0.3s cubic-bezier(0.4,0,0.2,1); }
 .kpi-card:hover { transform: translateY(-4px); box-shadow: 0 16px 40px -8px rgba(0,0,0,0.15); }
 
+/* ─── Frozen Y-axis scrollable charts ───
+   Dates run horizontally (oldest at left, newest at right). The % axis
+   (left) stays frozen while the chart scrolls horizontally, so older dates
+   are reachable by scrolling right. % values are dynamic (from data).
+   All children share one grid cell so the frozen strip overlays the chart. */
+.chart-scroll-wrap { position: relative; overflow-x: auto; display: grid; }
+.chart-scroll-wrap > * { grid-area: 1 / 1; }
+.chart-frozen-y { position: sticky; left: 0; z-index: 5; width: 50px; background: #fff; align-self: stretch; justify-self: start; border-right: 1px solid #e2e8f0; }
+.dark .chart-frozen-y { background: #131318; border-right-color: #2b2b33; }
+
 /* ─── Graph insight boxes (simple-language notes under each chart) ─── */
 .graph-insight {
   margin-top: 10px;

@@ -616,17 +616,104 @@ function upsertChart(key, ctxId, config) {
   CHARTS[key] = new Chart(ctx, config);
 }
 
-/* ─── Chart width helper ───
-   Keeps date labels horizontal: when there are more dates than fit in the
-   card, the chart gets a wider min-width and the container scrolls
-   horizontally so older dates stay reachable. */
-function fitChartWidth(wrapId, nDates) {
-  const wrap = document.getElementById(wrapId);
-  if (!wrap) return;
-  const container = wrap.parentElement;
-  const avail = container ? container.clientWidth : 600;
-  const minW = Math.max(avail, nDates * 70);
-  wrap.style.minWidth = minW + 'px';
+/* ─── Frozen Y-axis scrollable line chart ───
+   Dates run horizontally (oldest at left, newest at right). The % axis
+   (left) stays frozen while the chart scrolls horizontally, so older dates
+   are reachable by scrolling right. % values are dynamic (from data). */
+function niceTicks_(min, max, count) {
+  const span = max - min;
+  if (span <= 0 || !isFinite(span)) return [min];
+  const step0 = span / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const norm = step0 / mag;
+  const step = (norm >= 3 ? 5 : norm >= 1.5 ? 2 : norm >= 0.75 ? 1 : 0.5) * mag;
+  const ticks = [];
+  for (let v = Math.floor(min / step) * step; v <= Math.ceil(max / step) * step + 1e-9; v += step) {
+    ticks.push(Math.round(v * 100) / 100);
+  }
+  return ticks;
+}
+
+function renderFrozenYChart(cfg) {
+  // cfg: { wrapId, frozenYId, legendId, canvasId, chartKey,
+  //        dates, datasets, yMin, yMax, tickColor, gridColor }
+  const wrap = document.getElementById(cfg.wrapId);
+  const fy = document.getElementById(cfg.frozenYId);
+  if (!wrap || !fy) return;
+  const scroller = wrap.parentElement;
+  const availW = scroller.clientWidth || 600;
+  const pxPerDate = 100;
+  const padTop = 10, padBottom = 10, padLeft = 50, padRight = 10;
+  const canvasW = Math.max(availW, cfg.dates.length * pxPerDate);
+  const canvasH = 320;
+  wrap.style.width = canvasW + 'px';
+  wrap.style.height = canvasH + 'px';
+
+  // Canvas must be sized explicitly (responsive:false ignores container size)
+  const canvas = wrap.querySelector('canvas');
+  if (canvas) {
+    canvas.width = canvasW;
+    canvas.height = canvasH;
+    canvas.style.width = canvasW + 'px';
+    canvas.style.height = canvasH + 'px';
+  }
+
+  // % ticks (frozen left column) — dynamic values from data
+  const ticks = niceTicks_(cfg.yMin, cfg.yMax, 5);
+  const tMin = ticks[0], tMax = ticks[ticks.length - 1];
+  const step = ticks.length > 1 ? ticks[1] - ticks[0] : 1;
+  const plotH = canvasH - padTop - padBottom;
+  fy.innerHTML = ticks.map(t => {
+    const y = padTop + (1 - (t - tMin) / (tMax - tMin)) * plotH;
+    return '<div style="position:absolute;top:' + y + 'px;transform:translateY(-50%);left:0;right:0;text-align:center;font-size:11px;color:' + cfg.tickColor + '">' + t + '%</div>';
+  }).join('');
+  fy.style.height = canvasH + 'px';
+
+  // HTML legend (below the chart)
+  const legend = document.getElementById(cfg.legendId);
+  if (legend) {
+    legend.innerHTML = cfg.datasets.map(ds => {
+      const c = ds.borderColor || ds.backgroundColor;
+      return '<span class="flex items-center gap-1.5" style="color:' + cfg.tickColor + '"><span style="width:10px;height:3px;border-radius:2px;background:' + c + ';display:inline-block"></span>' + ds.label + '</span>';
+    }).join('');
+  }
+
+  // Chart (dates on X-axis, % on Y-axis)
+  upsertChart(cfg.chartKey, cfg.canvasId, {
+    type: 'line',
+    data: { labels: cfg.dates, datasets: cfg.datasets },
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      layout: { padding: { top: padTop, left: padLeft, right: padRight, bottom: padBottom } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          mode: 'index', intersect: false,
+          callbacks: { label: function(ctx) { return ' ' + ctx.dataset.label + ': ' + (ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) : '') + '%'; } }
+        }
+      },
+      scales: {
+        y: {
+          min: tMin, max: tMax,
+          ticks: { display: false, stepSize: step },
+          grid: { color: cfg.gridColor }
+        },
+        x: {
+          offset: true,
+          ticks: { color: cfg.tickColor, maxRotation: 0, minRotation: 0, autoSkip: false },
+          grid: { display: false }
+        }
+      }
+    }
+  });
+
+  // Start scrolled to the right so the newest (rightmost) dates are visible;
+  // users scroll left to see older dates.
+  requestAnimationFrame(() => {
+    scroller.scrollLeft = scroller.scrollWidth;
+  });
 }
 
 function renderTopBottomChart(f) {
@@ -782,8 +869,8 @@ function renderZoneComparisonChart(f) {
       backgroundColor: hexToRgba_(hex, 0.08),
       fill: false,
       tension: 0.4,
-      pointRadius: 3,
-      pointHoverRadius: 6,
+      pointRadius: 4,
+      pointHoverRadius: 7,
       pointBackgroundColor: hex,
       borderWidth: 2.5,
       spanGaps: true
@@ -801,31 +888,18 @@ function renderZoneComparisonChart(f) {
     yMax = Math.ceil(Math.max.apply(null, allVals)) + 1;
   }
 
-  upsertChart('zoneComparison', 'chartZoneComparison', {
-    type: 'line',
-    data: { labels: dates, datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { position: 'bottom', labels: { boxWidth: 14, padding: 14, font: { size: 11 }, color: darkMode ? '#cbd5e1' : '#64748b' } },
-        tooltip: {
-          mode: 'index', intersect: false,
-          callbacks: { label: ctx => ctx.parsed.y != null ? ' ' + ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%' : '' }
-        }
-      },
-      scales: {
-        y: {
-          grid: { color: chartGridColor() },
-          ticks: { callback: v => v + '%', color: chartTickColor() },
-          min: yMin,
-          max: yMax
-        },
-        x: { grid: { display: false }, ticks: { color: chartTickColor(), maxRotation: 0, minRotation: 0, autoSkip: false } }
-      }
-    }
+  renderFrozenYChart({
+    wrapId: 'zoneChartWrap',
+    frozenYId: 'zoneFrozenY',
+    legendId: 'zoneLegend',
+    canvasId: 'chartZoneComparison',
+    chartKey: 'zoneComparison',
+    dates,
+    datasets,
+    yMin, yMax,
+    tickColor: darkMode ? '#cbd5e1' : '#64748b',
+    gridColor: chartGridColor()
   });
-  fitChartWidth('zoneChartWrap', dates.length);
 }
 
 /* ─── Zone trend auto-insights ───
@@ -967,8 +1041,8 @@ function renderTrendChart(f) {
       backgroundColor: c.fill,
       fill: false,
       tension: 0.4,
-      pointRadius: 3,
-      pointHoverRadius: 6,
+      pointRadius: 4,
+      pointHoverRadius: 7,
       pointBackgroundColor: c.line,
       borderWidth: 2.5,
       spanGaps: true
@@ -1001,40 +1075,31 @@ function renderTrendChart(f) {
     },
     fill: true,
     tension: 0.4,
-    pointRadius: 3,
-    pointHoverRadius: 7,
+    pointRadius: 4,
+    pointHoverRadius: 8,
     pointBackgroundColor: darkMode ? '#e2e8f0' : '#1e293b',
     borderWidth: 2,
     borderDash: [5, 3],
     spanGaps: true
   });
 
-  upsertChart('trend', 'chartTrend', {
-    type: 'line',
-    data: { labels: dates, datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { position: 'bottom', labels: { boxWidth: 14, padding: 14, font: { size: 11 }, color: darkMode ? '#cbd5e1' : '#64748b' } },
-        tooltip: {
-          mode: 'index', intersect: false,
-          callbacks: {
-            label: ctx => ctx.parsed.y != null ? ' ' + ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%' : ''
-          }
-        }
-      },
-      scales: {
-        y: {
-          grid: { color: chartGridColor() },
-          ticks: { callback: v => v + '%', color: chartTickColor() },
-          beginAtZero: true
-        },
-        x: { grid: { display: false }, ticks: { color: chartTickColor(), maxRotation: 0, minRotation: 0, autoSkip: false } }
-      }
-    }
+  // % axis range: 0 to the highest value across all lines
+  let maxVal = 0;
+  datasets.forEach(ds => ds.data.forEach(v => { if (v != null && v > maxVal) maxVal = v; }));
+
+  renderFrozenYChart({
+    wrapId: 'trendChartWrap',
+    frozenYId: 'trendFrozenY',
+    legendId: 'trendLegend',
+    canvasId: 'chartTrend',
+    chartKey: 'trend',
+    dates,
+    datasets,
+    yMin: 0,
+    yMax: maxVal,
+    tickColor: darkMode ? '#cbd5e1' : '#64748b',
+    gridColor: chartGridColor()
   });
-  fitChartWidth('trendChartWrap', dates.length);
 
   // ─── Simple-language insight under the trend chart ───
   const bulb = '<i class="fa-solid fa-lightbulb mr-1"></i>';

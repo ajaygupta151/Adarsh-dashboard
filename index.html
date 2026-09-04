@@ -200,9 +200,11 @@
             <h3 class="font-semibold text-sm">Zone Performance Trend</h3>
             <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">date-wise · per zone</span>
           </div>
-          <div class="overflow-x-auto">
-            <div class="relative" style="height:320px" id="zoneChartWrap"><canvas id="chartZoneComparison"></canvas></div>
+          <div class="chart-scroll-wrap">
+            <div class="chart-frozen-y" id="zoneFrozenY"></div>
+            <div class="relative" id="zoneChartWrap"><canvas id="chartZoneComparison"></canvas></div>
           </div>
+          <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px]" id="zoneLegend"></div>
         </div>
 
         <!-- ═══════ ZONE TREND INSIGHTS ═══════ -->
@@ -235,9 +237,11 @@
             </div>
             <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">by filters</span>
           </div>
-          <div class="overflow-x-auto">
-            <div class="relative" style="height:320px" id="trendChartWrap"><canvas id="chartTrend"></canvas></div>
+          <div class="chart-scroll-wrap">
+            <div class="chart-frozen-y" id="trendFrozenY"></div>
+            <div class="relative" id="trendChartWrap"><canvas id="chartTrend"></canvas></div>
           </div>
+          <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px]" id="trendLegend"></div>
           <div id="insightTrend" class="graph-insight"></div>
         </div>
 
