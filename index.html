@@ -5,7 +5,7 @@
   <title>Adarsh Vidyapeeth Command Center</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/svg+xml" href="pw-logo.svg">
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
   <!-- CDN dependencies -->
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
@@ -156,18 +156,63 @@
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
           <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
             <div class="flex items-center gap-2 mb-3">
-              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-red-600 to-red-900 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-ranking-star"></i></div>
-              <h3 class="font-semibold text-sm">Top 10 vs Bottom 10 Centers</h3>
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-600 to-emerald-900 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-ranking-star"></i></div>
+              <h3 class="font-semibold text-sm">Top 10 Centers</h3>
+              <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">best performers</span>
             </div>
-            <div class="relative" style="height:320px"><canvas id="chartTopBottom"></canvas></div>
+            <div class="relative" style="height:320px"><canvas id="chartTop10"></canvas></div>
+            <div id="insightTop10" class="graph-insight"></div>
           </div>
           <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
             <div class="flex items-center gap-2 mb-3">
-              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-red-500 to-red-800 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-simple"></i></div>
-              <h3 class="font-semibold text-sm">Zone Performance Comparison</h3>
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-rose-600 to-rose-900 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-ranking-star"></i></div>
+              <h3 class="font-semibold text-sm">Bottom 10 Centers</h3>
+              <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">need attention</span>
             </div>
-            <div class="relative" style="height:320px"><canvas id="chartZoneComparison"></canvas></div>
+            <div class="relative" style="height:320px"><canvas id="chartBottom10"></canvas></div>
+            <div id="insightBottom10" class="graph-insight"></div>
           </div>
+        </div>
+
+        <!-- ═══════ WHY TOP / WHY BOTTOM ═══════ -->
+        <div id="whyTopBottomCard" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-red-600 to-red-900 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-circle-question"></i></div>
+            <h3 class="font-semibold text-sm">Why are they on top / at the bottom?</h3>
+            <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">metric contribution</span>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 mb-1"><i class="fa-solid fa-arrow-up mr-1"></i>Top 10 — why they lead</p>
+              <div id="topWhyList" class="divide-y divide-slate-50"></div>
+            </div>
+            <div>
+              <p class="text-[10px] font-semibold uppercase tracking-wider text-rose-600 mb-1"><i class="fa-solid fa-arrow-down mr-1"></i>Bottom 10 — why they lag</p>
+              <div id="bottomWhyList" class="divide-y divide-slate-50"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════ ZONE TREND (DATE-WISE LINE GRAPH) ═══════ -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-red-500 to-red-800 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-line"></i></div>
+            <h3 class="font-semibold text-sm">Zone Performance Trend</h3>
+            <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">date-wise · per zone</span>
+          </div>
+          <div class="overflow-x-auto">
+            <div class="relative" style="height:320px" id="zoneChartWrap"><canvas id="chartZoneComparison"></canvas></div>
+          </div>
+        </div>
+
+        <!-- ═══════ ZONE TREND INSIGHTS ═══════ -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-900 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+            <h3 class="font-semibold text-sm">What's happening in the Zone Trend?</h3>
+            <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">auto insights</span>
+          </div>
+          <div id="zoneInsightsList" class="space-y-2 text-sm text-slate-700"></div>
         </div>
 
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
@@ -179,6 +224,7 @@
           <div class="overflow-auto rounded-xl">
             <table class="heatmap w-full text-xs" id="heatmapTable"></table>
           </div>
+          <div id="insightHeatmap" class="graph-insight"></div>
         </div>
 
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
@@ -189,7 +235,10 @@
             </div>
             <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">by filters</span>
           </div>
-          <div class="relative" style="height:320px"><canvas id="chartTrend"></canvas></div>
+          <div class="overflow-x-auto">
+            <div class="relative" style="height:320px" id="trendChartWrap"><canvas id="chartTrend"></canvas></div>
+          </div>
+          <div id="insightTrend" class="graph-insight"></div>
         </div>
 
         <!-- ═══════ SUB-METRIC STACKED BAR CHARTS ═══════ -->
@@ -203,6 +252,7 @@
               </div>
             </div>
           </div>
+          <div id="insightSubmetric" class="graph-insight mb-4"></div>
           <div id="submetricChartsGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-5"></div>
         </div>
         

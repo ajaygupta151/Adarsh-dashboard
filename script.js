@@ -66,6 +66,12 @@ function cacheDOM() {
   DOM.kpiBestZone = document.getElementById('kpiBestZone');
   DOM.kpiBestZoneScore = document.getElementById('kpiBestZoneScore');
 
+  DOM.insightTop10 = document.getElementById('insightTop10');
+  DOM.insightBottom10 = document.getElementById('insightBottom10');
+  DOM.insightHeatmap = document.getElementById('insightHeatmap');
+  DOM.insightTrend = document.getElementById('insightTrend');
+  DOM.insightSubmetric = document.getElementById('insightSubmetric');
+
   DOM.insightsBar = document.getElementById('insightsBar');
   DOM.insightTopRegion = document.getElementById('insightTopRegion');
   DOM.insightTopZone = document.getElementById('insightTopZone');
@@ -78,6 +84,9 @@ function cacheDOM() {
   DOM.rowCountLabel = document.getElementById('rowCountLabel');
   DOM.statusBarCount = document.getElementById('statusBarCount');
   DOM.detailSearch = document.getElementById('detailSearch');
+  DOM.topWhyList = document.getElementById('topWhyList');
+  DOM.bottomWhyList = document.getElementById('bottomWhyList');
+  DOM.zoneInsightsList = document.getElementById('zoneInsightsList');
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -538,7 +547,9 @@ function renderAll() {
   const f = getFilters();
   renderKpis(f);
   renderTopBottomChart(f);
+  renderTopBottomInsights(f);
   renderZoneComparisonChart(f);
+  renderZoneInsights(f);
   renderHeatmap(f);
   renderTrendChart(f);
   renderSubMetricCharts(f);
@@ -605,16 +616,42 @@ function upsertChart(key, ctxId, config) {
   CHARTS[key] = new Chart(ctx, config);
 }
 
+/* ─── Chart width helper ───
+   Keeps date labels horizontal: when there are more dates than fit in the
+   card, the chart gets a wider min-width and the container scrolls
+   horizontally so older dates stay reachable. */
+function fitChartWidth(wrapId, nDates) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  const container = wrap.parentElement;
+  const avail = container ? container.clientWidth : 600;
+  const minW = Math.max(avail, nDates * 70);
+  wrap.style.minWidth = minW + 'px';
+}
+
 function renderTopBottomChart(f) {
   const scores = computeScoresForDate(f.date, f).sort((a, b) => b.score - a.score);
   const top10 = scores.slice(0, 10);
   const bottom10 = scores.slice(-10).reverse();
-  const labels = [...top10.map(c => c.center), ...bottom10.map(c => c.center)];
-  const values = [...top10.map(c => c.score), ...bottom10.map(c => c.score)];
-  const colors = [...top10.map(() => '#10b981'), ...bottom10.map(() => '#f43f5e')];
-  upsertChart('topBottom', 'chartTopBottom', {
+
+  // ─── Top 10 Centers (green) ───
+  upsertChart('top10', 'chartTop10', {
     type: 'bar',
-    data: { labels, datasets: [{ label: 'Score %', data: values, backgroundColor: colors, borderRadius: 6, borderSkipped: false }] },
+    data: { labels: top10.map(c => c.center), datasets: [{ label: 'Score %', data: top10.map(c => c.score), backgroundColor: '#10b981', borderRadius: 6, borderSkipped: false }] },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.x.toFixed(2) + '%' } } },
+      scales: {
+        x: { grid: { color: chartGridColor() }, ticks: { callback: v => v + '%', color: chartTickColor() } },
+        y: { grid: { display: false }, ticks: { color: chartTickColor() } }
+      }
+    }
+  });
+
+  // ─── Bottom 10 Centers (red) ───
+  upsertChart('bottom10', 'chartBottom10', {
+    type: 'bar',
+    data: { labels: bottom10.map(c => c.center), datasets: [{ label: 'Score %', data: bottom10.map(c => c.score), backgroundColor: '#f43f5e', borderRadius: 6, borderSkipped: false }] },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.x.toFixed(2) + '%' } } },
@@ -626,25 +663,216 @@ function renderTopBottomChart(f) {
   });
 }
 
+/* ─── Why top / why bottom ───
+   For the selected date, explains each Top-10 center's biggest metric
+   contributor and each Bottom-10 center's weakest metric, so a manager can
+   see at a glance WHY a center is leading or lagging. */
+function renderTopBottomInsights(f) {
+  const topEl = DOM.topWhyList;
+  const bottomEl = DOM.bottomWhyList;
+  if (!topEl || !bottomEl) return;
+
+  const scores = computeScoresForDate(f.date, f).sort((a, b) => b.score - a.score);
+  if (scores.length === 0) {
+    topEl.innerHTML = '<p class="text-sm text-slate-400">No data matches current filters.</p>';
+    bottomEl.innerHTML = '';
+    return;
+  }
+  const top10 = scores.slice(0, 10);
+  const bottom10 = scores.slice(-10).reverse();
+
+  // Per-center per-metric breakdown for the selected date (sum of overallAchPct)
+  const rows = DATA.rawRows.filter(r =>
+    r.date === f.date &&
+    (f.region === 'All' || r.region === f.region) &&
+    (f.zone === 'All' || r.zone === f.zone) &&
+    (f.center === 'All' || r.center === f.center)
+  );
+  const byCenter = {};
+  rows.forEach(r => {
+    if (!byCenter[r.center]) byCenter[r.center] = { metrics: {} };
+    byCenter[r.center].metrics[r.metric] = (byCenter[r.center].metrics[r.metric] || 0) + (r.overallAchPct || 0);
+  });
+
+  function strongest(center) {
+    const m = byCenter[center] ? byCenter[center].metrics : {};
+    let best = null, bestV = -Infinity;
+    Object.keys(m).forEach(k => { if (m[k] > bestV) { bestV = m[k]; best = k; } });
+    return best ? { metric: best, val: bestV } : null;
+  }
+  function weakest(center) {
+    const m = byCenter[center] ? byCenter[center].metrics : {};
+    let worst = null, worstV = Infinity;
+    Object.keys(m).forEach(k => { if (m[k] < worstV) { worstV = m[k]; worst = k; } });
+    return worst ? { metric: worst, val: worstV } : null;
+  }
+
+  topEl.innerHTML = top10.map((c, i) => {
+    const s = strongest(c.center);
+    const extra = s ? ' — driven by <b>' + escapeHtml(s.metric) + '</b> (' + s.val.toFixed(2) + ' pts)' : '';
+    return '<div class="flex items-start gap-2 py-1.5">' +
+      '<span class="text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded-full px-2 py-0.5 shrink-0">#' + (i + 1) + '</span>' +
+      '<span class="text-xs"><b>' + escapeHtml(c.center) + '</b> <span class="text-emerald-600 font-semibold">' + c.score.toFixed(2) + '%</span>' + extra + '</span></div>';
+  }).join('');
+
+  bottomEl.innerHTML = bottom10.map((c, i) => {
+    const w = weakest(c.center);
+    const extra = w ? ' — dragged down by <b>' + escapeHtml(w.metric) + '</b> (' + w.val.toFixed(2) + ' pts)' : '';
+    return '<div class="flex items-start gap-2 py-1.5">' +
+      '<span class="text-[10px] font-bold bg-rose-100 text-rose-700 rounded-full px-2 py-0.5 shrink-0">#' + (scores.length - i) + '</span>' +
+      '<span class="text-xs"><b>' + escapeHtml(c.center) + '</b> <span class="text-rose-600 font-semibold">' + c.score.toFixed(2) + '%</span>' + extra + '</span></div>';
+  }).join('');
+
+  // ─── Simple-language insight under the Top 10 / Bottom 10 charts ───
+  const bulb = '<i class="fa-solid fa-lightbulb mr-1"></i>';
+  const topAvg = top10.reduce((s, c) => s + c.score, 0) / top10.length;
+  const bottomAvg = bottom10.reduce((s, c) => s + c.score, 0) / bottom10.length;
+  if (DOM.insightTop10) {
+    DOM.insightTop10.innerHTML = bulb + 'This chart shows the top <b>10</b> best-performing centers. Their average is <b>' + topAvg.toFixed(2) + '%</b> — <b>' + top10[0].center + '</b> is leading with <b>' + top10[0].score.toFixed(2) + '%</b>.';
+  }
+  if (DOM.insightBottom10) {
+    DOM.insightBottom10.innerHTML = bulb + 'This chart shows the bottom <b>10</b> weakest centers. Their average is only <b>' + bottomAvg.toFixed(2) + '%</b> — <b>' + bottom10[0].center + '</b> is at the very bottom (' + bottom10[0].score.toFixed(2) + '%). These need immediate attention.';
+  }
+}
+
+/* ─── Zone trend series ───
+   For every date: per-center score (sum of overallAchPct), then per-zone
+   average of those center scores. Returns { dates, zones, series } where
+   series[zone] = [value per date] (null when a zone has no centers that day). */
+function computeZoneSeries(f) {
+  const center = f.center === 'All' ? null : f.center;
+  const baseRows = DATA.rawRows.filter(r =>
+    (f.region === 'All' || r.region === f.region) &&
+    (f.zone  === 'All' || r.zone  === f.zone) &&
+    (!center || r.center === center)
+  );
+  const dates = DATA.meta.dates;
+  const centerScoresByDate = {};
+  dates.forEach(d => { centerScoresByDate[d] = {}; });
+  baseRows.forEach(r => {
+    const m = centerScoresByDate[r.date];
+    if (!m) return;
+    if (!m[r.center]) m[r.center] = { zone: r.zone, score: 0 };
+    m[r.center].score += (r.overallAchPct || 0);
+  });
+  const zones = DATA.meta.zones;
+  const series = {};
+  zones.forEach(z => {
+    series[z] = dates.map(d => {
+      const centers = Object.values(centerScoresByDate[d]).filter(c => c.zone === z);
+      if (centers.length === 0) return null;
+      return Math.round((centers.reduce((s, c) => s + c.score, 0) / centers.length) * 100) / 100;
+    });
+  });
+  return { dates, zones, series };
+}
+
 function renderZoneComparisonChart(f) {
-  const scores = computeScoresForDate(f.date, f);
-  const byZone = {};
-  scores.forEach(c => { if (!byZone[c.zone]) byZone[c.zone] = []; byZone[c.zone].push(c.score); });
-  const zones = Object.keys(byZone).sort((a, b) => (parseInt(a.replace(/\D/g, ''), 10) || 0) - (parseInt(b.replace(/\D/g, ''), 10) || 0));
-  const avgs = zones.map(z => byZone[z].reduce((s, v) => s + v, 0) / byZone[z].length);
-  const gradientColors = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e'];
+  const { dates, zones, series } = computeZoneSeries(f);
+  // Maximally distinct colors — first 5 (red, blue, green, amber, purple)
+  // are as far apart on the color wheel as possible so zone lines never
+  // get confused with each other; extras kick in if there are more zones.
+  const palette = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#06b6d4', '#ec4899', '#84cc16'];
+  const datasets = zones.map((zone, zi) => {
+    const hex = palette[zi % palette.length];
+    return {
+      label: zone,
+      data: series[zone],
+      borderColor: hex,
+      backgroundColor: hexToRgba_(hex, 0.08),
+      fill: false,
+      tension: 0.4,
+      pointRadius: 3,
+      pointHoverRadius: 6,
+      pointBackgroundColor: hex,
+      borderWidth: 2.5,
+      spanGaps: true
+    };
+  });
+
+  // Dynamic Y-axis: (data min - 1) to (data max + 1) so the lines spread out
+  // and the differences between zones are clearly visible (instead of a
+  // 0-based axis that squishes everything near the top).
+  const allVals = [];
+  zones.forEach(z => series[z].forEach(v => { if (v != null) allVals.push(v); }));
+  let yMin = 0, yMax = 100;
+  if (allVals.length > 0) {
+    yMin = Math.floor(Math.min.apply(null, allVals)) - 1;
+    yMax = Math.ceil(Math.max.apply(null, allVals)) + 1;
+  }
+
   upsertChart('zoneComparison', 'chartZoneComparison', {
-    type: 'bar',
-    data: { labels: zones, datasets: [{ label: 'Avg Score %', data: avgs.map(v => Math.round(v * 100) / 100), backgroundColor: gradientColors.slice(0, zones.length), borderRadius: 8, borderSkipped: false }] },
+    type: 'line',
+    data: { labels: dates, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.y.toFixed(2) + '%' } } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 14, padding: 14, font: { size: 11 }, color: darkMode ? '#cbd5e1' : '#64748b' } },
+        tooltip: {
+          mode: 'index', intersect: false,
+          callbacks: { label: ctx => ctx.parsed.y != null ? ' ' + ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%' : '' }
+        }
+      },
       scales: {
-        y: { grid: { color: chartGridColor() }, ticks: { callback: v => v + '%', color: chartTickColor() } },
-        x: { grid: { display: false }, ticks: { color: chartTickColor() } }
+        y: {
+          grid: { color: chartGridColor() },
+          ticks: { callback: v => v + '%', color: chartTickColor() },
+          min: yMin,
+          max: yMax
+        },
+        x: { grid: { display: false }, ticks: { color: chartTickColor(), maxRotation: 0, minRotation: 0, autoSkip: false } }
       }
     }
   });
+  fitChartWidth('zoneChartWrap', dates.length);
+}
+
+/* ─── Zone trend auto-insights ───
+   Explains in plain words what the line graph is showing: who leads right
+   now, who has the best overall average, who improved the most, and which
+   zone is declining. */
+function renderZoneInsights(f) {
+  const el = DOM.zoneInsightsList;
+  if (!el) return;
+  const { dates, zones, series } = computeZoneSeries(f);
+  if (dates.length === 0 || zones.length === 0) {
+    el.innerHTML = '<p class="text-sm text-slate-400">No data matches current filters.</p>';
+    return;
+  }
+  const first = dates[0], last = dates[dates.length - 1];
+  const stats = zones.map(z => {
+    const vals = series[z];
+    const valid = vals.filter(v => v != null);
+    const avg = valid.length ? valid.reduce((s, v) => s + v, 0) / valid.length : null;
+    const fv = vals[0], lv = vals[vals.length - 1];
+    const change = (fv != null && lv != null) ? lv - fv : null;
+    return { zone: z, avg, first: fv, last: lv, change };
+  });
+
+  const lastVals = stats.filter(s => s.last != null);
+  const currentLeader = lastVals.length ? lastVals.reduce((a, b) => b.last > a.last ? b : a) : null;
+  const withAvg = stats.filter(s => s.avg != null);
+  const bestAvg = withAvg.length ? withAvg.reduce((a, b) => b.avg > a.avg ? b : a) : null;
+  const withChange = stats.filter(s => s.change != null);
+  const mostImproved = withChange.length ? withChange.reduce((a, b) => b.change > a.change ? b : a) : null;
+  const declining = withChange.filter(s => s.change < 0).sort((a, b) => a.change - b.change);
+
+  let html = '';
+  if (currentLeader) {
+    html += '<div class="flex items-start gap-2"><i class="fa-solid fa-crown text-amber-500 mt-0.5"></i><span><b>' + currentLeader.zone + '</b> is leading right now with <b>' + currentLeader.last.toFixed(2) + '%</b> average on ' + formatDisplayDate_(last) + '.</span></div>';
+  }
+  if (bestAvg) {
+    html += '<div class="flex items-start gap-2"><i class="fa-solid fa-trophy text-amber-500 mt-0.5"></i><span><b>' + bestAvg.zone + '</b> has the best overall average (<b>' + bestAvg.avg.toFixed(2) + '%</b>) across all ' + dates.length + ' dates.</span></div>';
+  }
+  if (mostImproved && mostImproved.change > 0) {
+    html += '<div class="flex items-start gap-2"><i class="fa-solid fa-arrow-trend-up text-emerald-500 mt-0.5"></i><span><b>' + mostImproved.zone + '</b> improved the most — from <b>' + mostImproved.first.toFixed(2) + '%</b> to <b>' + mostImproved.last.toFixed(2) + '%</b> (' + mostImproved.change.toFixed(2) + ' pts up).</span></div>';
+  }
+  if (declining.length > 0) {
+    html += '<div class="flex items-start gap-2"><i class="fa-solid fa-arrow-trend-down text-rose-500 mt-0.5"></i><span><b>' + declining[0].zone + '</b> is declining — from <b>' + declining[0].first.toFixed(2) + '%</b> to <b>' + declining[0].last.toFixed(2) + '%</b> (' + Math.abs(declining[0].change).toFixed(2) + ' pts down).</span></div>';
+  }
+  if (!html) html = '<p class="text-sm text-slate-400">Not enough data to draw insights.</p>';
+  el.innerHTML = html;
 }
 
 function renderHeatmap(f) {
@@ -676,6 +904,26 @@ function renderHeatmap(f) {
   });
   html += '</tbody>';
   DOM.heatmapTable.innerHTML = html;
+
+  // ─── Simple-language insight under the heatmap ───
+  const bulb = '<i class="fa-solid fa-lightbulb mr-1"></i>';
+  if (DOM.insightHeatmap) {
+    if (regions.length === 0) {
+      DOM.insightHeatmap.innerHTML = bulb + 'No regions in this selection.';
+    } else {
+      // Best & worst region by overall average across metrics
+      let bestR = null, bestRV = -Infinity, worstR = null, worstRV = Infinity;
+      regions.forEach(r => {
+        const cc = Object.keys(centerSets[r] || {}).length || 1;
+        let tot = 0;
+        metrics.forEach(m => { tot += (sums[r + '||' + m] || 0) / cc; });
+        const avg = tot / metrics.length;
+        if (avg > bestRV) { bestRV = avg; bestR = r; }
+        if (avg < worstRV) { worstRV = avg; worstR = r; }
+      });
+      DOM.insightHeatmap.innerHTML = bulb + 'This table shows each region\'s performance on every metric (green = good, red = weak). Best region: <b>' + bestR + '</b> (' + bestRV.toFixed(1) + '%). Weakest: <b>' + worstR + '</b> (' + worstRV.toFixed(1) + '%).';
+    }
+  }
 }
 
 function heatClass(v) { return v >= 60 ? 'score-high' : v >= 30 ? 'score-mid' : 'score-low'; }
@@ -739,7 +987,7 @@ function renderTrendChart(f) {
     return b.count > 0 ? Math.round((b.sum / b.count) * 100) / 100 : null;
   });
   datasets.push({
-    label: 'All Metrics Combined',
+    label: 'Overall Score',
     data: allValues,
     borderColor: darkMode ? '#e2e8f0' : '#1e293b',
     backgroundColor: function(ctx) {
@@ -782,10 +1030,29 @@ function renderTrendChart(f) {
           ticks: { callback: v => v + '%', color: chartTickColor() },
           beginAtZero: true
         },
-        x: { grid: { display: false }, ticks: { color: chartTickColor() } }
+        x: { grid: { display: false }, ticks: { color: chartTickColor(), maxRotation: 0, minRotation: 0, autoSkip: false } }
       }
     }
   });
+  fitChartWidth('trendChartWrap', dates.length);
+
+  // ─── Simple-language insight under the trend chart ───
+  const bulb = '<i class="fa-solid fa-lightbulb mr-1"></i>';
+  if (DOM.insightTrend) {
+    if (dates.length < 2) {
+      DOM.insightTrend.innerHTML = bulb + 'Need at least 2 dates of data to show a trend.';
+    } else {
+      const first = dates[0], last = dates[dates.length - 1];
+      const fv = allValues[0], lv = allValues[allValues.length - 1];
+      if (fv == null || lv == null) {
+        DOM.insightTrend.innerHTML = bulb + 'No trend data found for this selection.';
+      } else {
+        const diff = lv - fv;
+        const dir = diff > 0.5 ? 'going up' : diff < -0.5 ? 'going down' : 'staying about the same';
+        DOM.insightTrend.innerHTML = bulb + 'This chart shows how each metric\'s performance changes over time. Overall average went from <b>' + fv.toFixed(1) + '%</b> to <b>' + lv.toFixed(1) + '%</b> — performance is ' + dir + ' (' + (diff > 0 ? '+' : '') + diff.toFixed(1) + ' pts).';
+      }
+    }
+  }
 }
 
 /* ─── Zone Tab ─── */
@@ -1259,6 +1526,42 @@ function renderSubMetricCharts(f) {
 
   if (container.children.length === 0) {
     container.innerHTML = '<p class="text-sm text-slate-400 col-span-2 text-center py-8">No sub-metric data for current selection.</p>';
+  }
+
+  // ─── Simple-language insight under the sub-metric section ───
+  const bulb = '<i class="fa-solid fa-lightbulb mr-1"></i>';
+  if (DOM.insightSubmetric) {
+    if (baseRows.length === 0) {
+      DOM.insightSubmetric.innerHTML = bulb + 'No data for this selection.';
+    } else {
+      // Biggest target vs achieved gap across all sub-metrics in scope
+      let bestGap = null; // { metric, sub, target, achieved, gapPct }
+      metrics.forEach(metric => {
+        const metricRows = baseRows.filter(r => r.metric === metric);
+        const bySub2 = {};
+        metricRows.forEach(r => {
+          const sub = String(r.subMetric || 'Overall').trim();
+          if (!sub || sub === 'None' || sub === '-') return;
+          if (pinnedSub && sub !== pinnedSub.sub) return;
+          if (!bySub2[sub]) bySub2[sub] = { targetSum: 0, achievedSum: 0, count: 0 };
+          bySub2[sub].targetSum += (r.target != null ? r.target : 0);
+          bySub2[sub].achievedSum += (r.achieved != null ? r.achieved : 0);
+          bySub2[sub].count++;
+        });
+        Object.keys(bySub2).forEach(sub => {
+          const s = bySub2[sub];
+          const t = s.targetSum / s.count, a = s.achievedSum / s.count;
+          if (t <= 0) return;
+          const gapPct = ((t - a) / t) * 100;
+          if (!bestGap || gapPct > bestGap.gapPct) bestGap = { metric, sub, target: t, achieved: a, gapPct };
+        });
+      });
+      if (!bestGap) {
+        DOM.insightSubmetric.innerHTML = bulb + 'This chart shows <b>Target</b> (green), <b>Cap</b> (yellow) and <b>Achieved</b> (blue) for each sub-metric. Not enough data to find a gap in this selection.';
+      } else {
+        DOM.insightSubmetric.innerHTML = bulb + 'This chart shows <b>Target</b> (green), <b>Cap</b> (yellow) and <b>Achieved</b> (blue) for each sub-metric. Biggest gap: <b>' + escapeHtml(bestGap.sub) + '</b> (' + escapeHtml(bestGap.metric) + ') — target was <b>' + bestGap.target.toFixed(1) + '</b>, only <b>' + bestGap.achieved.toFixed(1) + '</b> achieved.';
+      }
+    }
   }
 }
 

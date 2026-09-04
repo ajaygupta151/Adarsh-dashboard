@@ -30,6 +30,25 @@ body { background: #f5f2f2; margin: 0; }
 .kpi-card { transition: all 0.3s cubic-bezier(0.4,0,0.2,1); }
 .kpi-card:hover { transform: translateY(-4px); box-shadow: 0 16px 40px -8px rgba(0,0,0,0.15); }
 
+/* ─── Graph insight boxes (simple-language notes under each chart) ─── */
+.graph-insight {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #475569;
+}
+.graph-insight i { color: #f59e0b; }
+.dark .graph-insight {
+  background: #1c1c23;
+  border-color: #2b2b33;
+  color: #cbd5e1;
+}
+.dark .graph-insight b { color: #f1f5f9; }
+
 /* ─── Glass filters bar ─── */
 .glass { background: rgba(255,255,255,0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 
@@ -461,6 +480,15 @@ select, input[type="text"] { outline: none; }
 /* Insights bar */
 .dark #insightsBar { background: #1e0d12 !important; border-color: #4a222c !important; }
 .dark #insightsBar span { color: #cbd5e1 !important; }
+
+/* ─── Why top / bottom card (dark mode) ─── */
+.dark #whyTopBottomCard { color: #cbd5e1; }
+.dark #whyTopBottomCard b { color: #f1f5f9; }
+.dark #whyTopBottomCard .text-emerald-600 { color: #34d399 !important; }
+.dark #whyTopBottomCard .text-rose-600 { color: #fb7185 !important; }
+.dark #whyTopBottomCard .bg-emerald-100 { background: rgba(16,185,129,0.18) !important; color: #6ee7b7 !important; }
+.dark #whyTopBottomCard .bg-rose-100 { background: rgba(244,63,94,0.18) !important; color: #fda4af !important; }
+.dark #whyTopBottomCard .divide-slate-50 > * { border-color: #2b2b33 !important; }
 
 /* Light utility chips (bg-slate-50 / bg-slate-100) */
 .dark .bg-slate-50 { background: #232327 !important; }
