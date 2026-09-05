@@ -636,7 +636,7 @@ function niceTicks_(min, max, count) {
 
 function renderFrozenYChart(cfg) {
   // cfg: { wrapId, frozenYId, legendId, canvasId, chartKey,
-  //        dates, datasets, yMin, yMax, tickColor, gridColor }
+  //        dates, datasets, yMin, yMax, tickColor, gridColor, canvasH? }
   const wrap = document.getElementById(cfg.wrapId);
   const fy = document.getElementById(cfg.frozenYId);
   if (!wrap || !fy) return;
@@ -645,7 +645,7 @@ function renderFrozenYChart(cfg) {
   const pxPerDate = 100;
   const padTop = 10, padBottom = 10, padLeft = 50, padRight = 10;
   const canvasW = Math.max(availW, cfg.dates.length * pxPerDate);
-  const canvasH = 320;
+  const canvasH = cfg.canvasH || 320;
   wrap.style.width = canvasW + 'px';
   wrap.style.height = canvasH + 'px';
 
@@ -658,14 +658,18 @@ function renderFrozenYChart(cfg) {
     canvas.style.height = canvasH + 'px';
   }
 
-  // % ticks (frozen left column) — dynamic values from data
+  // % ticks (frozen left column) — dynamic values from data.
+  // suffix is configurable: percentage metrics use '%', count metrics (e.g.
+  // Admission) use ''. decimals controls tooltip precision (0 for counts).
+  const suffix = cfg.suffix != null ? cfg.suffix : '%';
+  const decimals = cfg.decimals != null ? cfg.decimals : 2;
   const ticks = niceTicks_(cfg.yMin, cfg.yMax, 5);
   const tMin = ticks[0], tMax = ticks[ticks.length - 1];
   const step = ticks.length > 1 ? ticks[1] - ticks[0] : 1;
   const plotH = canvasH - padTop - padBottom;
   fy.innerHTML = ticks.map(t => {
     const y = padTop + (1 - (t - tMin) / (tMax - tMin)) * plotH;
-    return '<div style="position:absolute;top:' + y + 'px;transform:translateY(-50%);left:0;right:0;text-align:center;font-size:11px;color:' + cfg.tickColor + '">' + t + '%</div>';
+    return '<div style="position:absolute;top:' + y + 'px;transform:translateY(-50%);left:0;right:0;text-align:center;font-size:11px;color:' + cfg.tickColor + '">' + t + suffix + '</div>';
   }).join('');
   fy.style.height = canvasH + 'px';
 
@@ -691,7 +695,7 @@ function renderFrozenYChart(cfg) {
         legend: { display: false },
         tooltip: {
           mode: 'index', intersect: false,
-          callbacks: { label: function(ctx) { return ' ' + ctx.dataset.label + ': ' + (ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) : '') + '%'; } }
+          callbacks: { label: function(ctx) { return ' ' + ctx.dataset.label + ': ' + (ctx.parsed.y != null ? ctx.parsed.y.toFixed(decimals) : '') + suffix; } }
         }
       },
       scales: {
@@ -710,10 +714,14 @@ function renderFrozenYChart(cfg) {
   });
 
   // Start scrolled to the right so the newest (rightmost) dates are visible;
-  // users scroll left to see older dates.
-  requestAnimationFrame(() => {
+  // users scroll left to see older dates. Retry a few frames: on initial load
+  // layout may not be ready when the first rAF fires (scrollWidth = 0), so
+  // keep re-applying until the scroll actually lands at the end.
+  let tries = 0;
+  (function scrollToEnd() {
     scroller.scrollLeft = scroller.scrollWidth;
-  });
+    if (tries++ < 10) requestAnimationFrame(scrollToEnd);
+  })();
 }
 
 function renderTopBottomChart(f) {
@@ -1531,49 +1539,112 @@ function renderSubMetricCharts(f) {
         '<h3 class="font-semibold text-sm">Sub-Metric Breakdown</h3>' +
         '<span class="text-xs text-slate-400 ml-auto">' + subLabels.length + ' sub-metrics</span></div>';
     }
-    card.innerHTML = headerHtml +
-      '<div class="relative" style="height:300px"><canvas id="submetric-canvas-' + cardIdx + '"></canvas></div>';
+    // Admisison renders as a scrollable line graph over dates (initial → selected date);
+    // other metrics stay as bar charts for the selected date.
+    const isLine = metric.toLowerCase() === 'admisison';
+    if (isLine) {
+      card.innerHTML = headerHtml +
+        '<div class="chart-scroll-wrap"><div class="chart-frozen-y" id="submetric-fy-' + cardIdx + '"></div><div class="relative" id="submetric-wrap-' + cardIdx + '"><canvas id="submetric-canvas-' + cardIdx + '"></canvas></div></div>';
+    } else {
+      card.innerHTML = headerHtml +
+        '<div class="relative" style="height:300px"><canvas id="submetric-canvas-' + cardIdx + '"></canvas></div>';
+    }
     container.appendChild(card);
 
-    // Chart
-    const ctx = document.getElementById('submetric-canvas-' + cardIdx).getContext('2d');
-    const chartKey = 'submetric-' + cardIdx;
-    CHARTS[chartKey] = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: subLabels,
+    if (isLine) {
+      // ─── Admisison: line graph from initial date → selected date ───
+      const allDates = (DATA.meta.dates || []).slice();
+      const selIdx = allDates.indexOf(f.date);
+      const dates = selIdx >= 0 ? allDates.slice(0, selIdx + 1) : allDates;
+      const trendRows = DATA.rawRows.filter(r =>
+        dates.includes(r.date) &&
+        (f.region === 'All' || r.region === f.region) &&
+        (f.zone   === 'All' || r.zone   === f.zone) &&
+        (f.center === 'All' || r.center === f.center)
+      );
+      const byDate = {};
+      dates.forEach(d => { byDate[d] = { t: 0, c: 0, a: 0, n: 0 }; });
+      trendRows.forEach(r => {
+        if (r.metric !== metric) return;
+        const b = byDate[r.date]; if (!b) return;
+        b.t += (r.target != null ? r.target : 0);
+        b.c += (r.cap != null ? r.cap : 0);
+        b.a += (r.achieved != null ? r.achieved : 0);
+        b.n++;
+      });
+      // Admission counts are integers — round the per-date averages so the
+      // chart never shows decimals (e.g. 136.77 → 137).
+      const targetData   = dates.map(d => byDate[d].n > 0 ? Math.round(byDate[d].t / byDate[d].n) : null);
+      const capData      = dates.map(d => byDate[d].n > 0 ? Math.round(byDate[d].c / byDate[d].n) : null);
+      const achievedData = dates.map(d => byDate[d].n > 0 ? Math.round(byDate[d].a / byDate[d].n) : null);
+
+      const allVals = [].concat(targetData, capData, achievedData).filter(v => v != null);
+      let yMin = 0, yMax = 100;
+      if (allVals.length > 0) {
+        yMin = Math.floor(Math.min.apply(null, allVals)) - 1;
+        yMax = Math.ceil(Math.max.apply(null, allVals)) + 1;
+      }
+
+      renderFrozenYChart({
+        wrapId: 'submetric-wrap-' + cardIdx,
+        frozenYId: 'submetric-fy-' + cardIdx,
+        legendId: null,
+        canvasId: 'submetric-canvas-' + cardIdx,
+        chartKey: 'submetric-' + cardIdx,
+        dates,
         datasets: [
-          { label: 'Target',     data: targetData,    backgroundColor: 'rgba(16,185,129,0.85)', borderColor: '#10b981', borderWidth: 1, borderRadius: 4 },
-          { label: 'Min/Max Cap', data: capData,      backgroundColor: 'rgba(245,158,11,0.85)', borderColor: '#f59e0b', borderWidth: 1, borderRadius: 4 },
-          { label: 'Achieved',   data: achievedData, backgroundColor: 'rgba(59,130,246,0.85)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 }, color: darkMode ? '#cbd5e1' : '#64748b' } },
-          tooltip: {
-            mode: 'index', intersect: false,
-            callbacks: {
-              label: function(ctx) {
-                return ctx.dataset.label + ': ' + (ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) : '0');
+          { label: 'Target',      data: targetData,   borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.12)', borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: '#10b981', tension: 0.35, fill: false, spanGaps: true },
+          { label: 'Min/Max Cap', data: capData,      borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: '#f59e0b', tension: 0.35, fill: false, spanGaps: true },
+          { label: 'Achieved',    data: achievedData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.12)', borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: '#3b82f6', tension: 0.35, fill: false, spanGaps: true }
+        ],
+        yMin, yMax,
+        canvasH: 300,
+        suffix: '',
+        decimals: 0,
+        tickColor: darkMode ? '#cbd5e1' : '#64748b',
+        gridColor: chartGridColor()
+      });
+    } else {
+      // Bar chart for the selected date
+      const ctx = document.getElementById('submetric-canvas-' + cardIdx).getContext('2d');
+      const chartKey = 'submetric-' + cardIdx;
+      CHARTS[chartKey] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: subLabels,
+          datasets: [
+            { label: 'Target',     data: targetData,    backgroundColor: 'rgba(16,185,129,0.85)', borderColor: '#10b981', borderWidth: 1, borderRadius: 4 },
+            { label: 'Min/Max Cap', data: capData,      backgroundColor: 'rgba(245,158,11,0.85)', borderColor: '#f59e0b', borderWidth: 1, borderRadius: 4 },
+            { label: 'Achieved',   data: achievedData, backgroundColor: 'rgba(59,130,246,0.85)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 }, color: darkMode ? '#cbd5e1' : '#64748b' } },
+            tooltip: {
+              mode: 'index', intersect: false,
+              callbacks: {
+                label: function(ctx) {
+                  return ctx.dataset.label + ': ' + (ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) : '0');
+                }
               }
             }
-          }
-        },
-        scales: {
-          x: {
-            stacked: false, grid: { display: false },
-            ticks: { font: { size: 11 }, color: chartTickColor() }
           },
-          y: {
-            stacked: false, beginAtZero: true,
-            grid: { color: chartGridColor() },
-            ticks: { font: { size: 11 }, color: chartTickColor() }
+          scales: {
+            x: {
+              stacked: false, grid: { display: false },
+              ticks: { font: { size: 11 }, color: chartTickColor() }
+            },
+            y: {
+              stacked: false, beginAtZero: true,
+              grid: { color: chartGridColor() },
+              ticks: { font: { size: 11 }, color: chartTickColor() }
+            }
           }
         }
-      }
-    });
+      });
+    }
   });
 
   if (container.children.length === 0) {
@@ -1582,6 +1653,14 @@ function renderSubMetricCharts(f) {
 
   // ─── Simple-language insight under the sub-metric section ───
   const bulb = '<i class="fa-solid fa-lightbulb mr-1"></i>';
+  // Admission Target/Cap/Achieved are counts (not percentages) — explain this
+  // in the insight whenever the Admission metric is in scope.
+  const admissionInScope = metrics.some(m => m.toLowerCase() === 'admisison');
+  const admissionNote = admissionInScope
+    ? '<div class="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-700 flex items-start gap-1.5">' +
+      '<i class="fa-solid fa-circle-info mt-0.5"></i>' +
+      '<span><b>Note:</b> Admission Target, Cap and Achieved are counts (number of admissions), not percentages. The Admission chart shows the daily average across centers, rounded to whole numbers.</span></div>'
+    : '';
   if (DOM.insightSubmetric) {
     if (baseRows.length === 0) {
       DOM.insightSubmetric.innerHTML = bulb + 'No data for this selection.';
@@ -1609,9 +1688,9 @@ function renderSubMetricCharts(f) {
         });
       });
       if (!bestGap) {
-        DOM.insightSubmetric.innerHTML = bulb + 'This chart shows <b>Target</b> (green), <b>Cap</b> (yellow) and <b>Achieved</b> (blue) for each sub-metric. Not enough data to find a gap in this selection.';
+        DOM.insightSubmetric.innerHTML = bulb + 'This chart shows <b>Target</b> (green), <b>Cap</b> (yellow) and <b>Achieved</b> (blue) for each sub-metric. Not enough data to find a gap in this selection.' + admissionNote;
       } else {
-        DOM.insightSubmetric.innerHTML = bulb + 'This chart shows <b>Target</b> (green), <b>Cap</b> (yellow) and <b>Achieved</b> (blue) for each sub-metric. Biggest gap: <b>' + escapeHtml(bestGap.sub) + '</b> (' + escapeHtml(bestGap.metric) + ') — target was <b>' + bestGap.target.toFixed(1) + '</b>, only <b>' + bestGap.achieved.toFixed(1) + '</b> achieved.';
+        DOM.insightSubmetric.innerHTML = bulb + 'This chart shows <b>Target</b> (green), <b>Cap</b> (yellow) and <b>Achieved</b> (blue) for each sub-metric. Biggest gap: <b>' + escapeHtml(bestGap.sub) + '</b> (' + escapeHtml(bestGap.metric) + ') — target was <b>' + bestGap.target.toFixed(1) + '</b>, only <b>' + bestGap.achieved.toFixed(1) + '</b> achieved.' + admissionNote;
       }
     }
   }
