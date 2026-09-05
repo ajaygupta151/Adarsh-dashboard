@@ -104,7 +104,7 @@ select, input[type="text"] { outline: none; }
 @media print { .no-print { display: none !important; } }
 
 /* ═══════════════════════════════════════════════════════════════
-   DETAILED DATA — PROFESSIONAL EXCEL GRID
+   DETAILED DATA — METRIC-GROUPED EXCEL GRID
    ═══════════════════════════════════════════════════════════════ */
 
 #tab-detail { background: #efe9ea; }
@@ -115,17 +115,14 @@ select, input[type="text"] { outline: none; }
   border-spacing: 0;
   min-width: 100%;
   width: max-content;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
-/* thead itself sticky for robust freeze */
-.detail-grid thead {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-}
+/* thead + tfoot sticky for robust freeze */
+.detail-grid thead { position: sticky; top: 0; z-index: 30; }
+.detail-grid tfoot { position: sticky; bottom: 0; z-index: 20; }
 
-/* ─── Header rows ─── */
+/* ─── Header cells ─── */
 .detail-grid thead th {
   font-weight: 600;
   font-size: 10px;
@@ -140,73 +137,62 @@ select, input[type="text"] { outline: none; }
   color: #334155;
 }
 
-/* Group row — color-coded by section */
-.detail-grid thead .detail-group-row th {
-  top: 0 !important;
+/* Row 0: Metric groups — solid metric colors (inline), dark slate for ID/Final.
+   NOTE: no per-row `top` — the whole thead sticks as one block (top:0 on thead),
+   so rows can never slide over each other while scrolling vertically. */
+.detail-grid thead .detail-metric-row th {
   z-index: 40 !important;
-  height: 22px;
+  height: 24px;
   color: #fff;
   font-size: 10.5px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
-.detail-group-row th.id-col       { background: #475569 !important; border-color: #334155; }
-.detail-group-row th.grp-targets  { background: #3b82f6 !important; border-color: #2563eb; }
-.detail-group-row th.grp-achieved { background: #10b981 !important; border-color: #059669; }
-.detail-group-row th.grp-pct      { background: #f59e0b !important; border-color: #d97706; }
-.detail-group-row th.grp-final    { background: #334155 !important; border-color: #1e293b; }
-
-/* Frozen column headers — distinct frozen pane (darker + separator shadow) */
-.detail-grid thead th.id-col {
+.detail-grid thead .detail-metric-row th.id-col,
+.detail-grid thead .detail-metric-row th.grp-final {
   background: #334155 !important;
-  border-right: 2px solid #1e293b !important;
-}
-.detail-grid thead th.id-col::after,
-.detail-metric-row th:nth-child(-n+4)::after,
-.detail-field-row th:nth-child(-n+4)::after {
-  content: '';
-  position: absolute;
-  right: -8px;
-  top: 0;
-  bottom: 0;
-  width: 8px;
-  background: linear-gradient(to right, rgba(0,0,0,0.15), transparent);
-  pointer-events: none;
-  z-index: 10;
-}
-.detail-grid thead th.id-col,
-.detail-metric-row th:nth-child(-n+4),
-.detail-field-row th:nth-child(-n+4) {
-  overflow: visible !important;
-}
-.detail-metric-row th:nth-child(-n+4),
-.detail-field-row th:nth-child(-n+4) {
-  border-right: 2px solid #94a3b8 !important;
+  border-color: #1e293b;
 }
 
-/* Metric row — subtle tint matching group */
-.detail-metric-row th {
-  top: 22px !important;
-  z-index: 30 !important;
+/* Row 1: Sub-metrics — tinted (inline), sortable */
+.detail-grid thead .detail-submetric-row th {
+  z-index: 35 !important;
   height: 20px;
   font-size: 9.5px;
   font-weight: 600;
-  background: #f1f5f9 !important;
-  color: #475569;
+  cursor: pointer;
 }
-.detail-metric-row th.m-targets  { background: #eff6ff !important; color: #2563eb; }
-.detail-metric-row th.m-achieved { background: #ecfdf5 !important; color: #059669; }
-.detail-metric-row th.m-pct      { background: #fffbeb !important; color: #b45309; }
+.detail-grid thead .detail-submetric-row th:hover { filter: brightness(0.94); }
 
-/* Field row — clean light */
-.detail-field-row th {
-  top: 42px !important;
-  z-index: 25 !important;
+/* Row 2: Fields — sortable */
+.detail-grid thead .detail-field-row th {
+  z-index: 32 !important;
   height: 20px;
   font-size: 9.5px;
   font-weight: 600;
   background: #f8fafc !important;
   color: #334155;
+  cursor: pointer;
+}
+.detail-grid thead .detail-field-row th:hover { background: #eef2f7 !important; color: #e21b38; }
+.detail-grid thead .detail-field-row th.f-pct { color: #b45309; }
+
+/* Frozen header panes — left (#, Region, Center) and right (Final) stay above scrolling cells */
+.detail-grid thead th.id-col,
+.detail-grid thead .detail-submetric-row th:nth-child(-n+3),
+.detail-grid thead .detail-field-row th:nth-child(-n+3) {
+  background: #334155 !important;
+  color: #fff;
+  border-right: 2px solid #1e293b !important;
+  z-index: 45 !important;
+}
+.detail-grid thead .detail-metric-row th.grp-final,
+.detail-grid thead .detail-submetric-row th:nth-last-child(-n+3),
+.detail-grid thead .detail-field-row th:nth-last-child(-n+3) {
+  background: #334155 !important;
+  color: #fff;
+  border-left: 2px solid #1e293b !important;
+  z-index: 45 !important;
 }
 
 /* ─── Body rows ─── */
@@ -221,16 +207,10 @@ select, input[type="text"] { outline: none; }
   background: #fff;
   color: #1e293b;
 }
+.detail-grid tbody tr:nth-child(even) td { background: #f8fafc; }
+.detail-grid tbody tr:hover td { background: #fef2f4 !important; }
 
-.detail-grid tbody tr:nth-child(even) td {
-  background: #f8fafc;
-}
-
-.detail-grid tbody tr:hover td {
-  background: #fef2f4 !important;
-}
-
-/* ─── Frozen columns (4: #, Region, Center, Zone) ─── */
+/* ─── Frozen left (6: #, Region, Center, Zone, BH, CH) ─── */
 .detail-rownum {
   text-align: center;
   color: #64748b;
@@ -243,8 +223,6 @@ select, input[type="text"] { outline: none; }
   border-right: 1px solid #cbd5e1;
   padding: 3px 4px !important;
 }
-
-/* Frozen cells — SOLID backgrounds so scrollable data behind is fully covered */
 .detail-frozen {
   position: sticky;
   z-index: 8;
@@ -252,59 +230,116 @@ select, input[type="text"] { outline: none; }
   text-align: left;
   font-weight: 500;
 }
-.detail-grid tbody tr:nth-child(even) td.detail-frozen {
-  background: #f8fafc !important;
-}
-.detail-grid tbody tr:nth-child(even) td.detail-rownum {
-  background: #f1f5f9 !important;
-}
+.detail-grid tbody tr:nth-child(even) td.detail-frozen { background: #f8fafc !important; }
+.detail-grid tbody tr:nth-child(even) td.detail-rownum { background: #f1f5f9 !important; }
 .detail-grid tbody tr:hover td.detail-frozen,
-.detail-grid tbody tr:hover td.detail-rownum {
-  background: #fef2f4 !important;
-}
+.detail-grid tbody tr:hover td.detail-rownum { background: #fef2f4 !important; }
 
-/* Right-edge shadow on last frozen col (Zone) — Excel-like separator */
-.detail-frozen-zone {
-  position: sticky;
-  z-index: 9;
+/* Last frozen column (Center) — Excel-like separator (solid, no translucent shadow) */
+.detail-frozen-last {
   border-right: 2px solid #94a3b8 !important;
 }
-.detail-frozen-zone::after {
-  content: '';
-  position: absolute;
-  right: -8px;
-  top: 0;
-  bottom: 0;
-  width: 8px;
-  background: linear-gradient(to right, rgba(0,0,0,0.12), transparent);
-  pointer-events: none;
-  z-index: 10;
-}
 
-/* Don't clip frozen cells so the shadow can render outside */
+/* ─── Final group (Score, Rank, Z-Rank) — normal scrollable columns ─── */
+.detail-fr-score {
+  border-left: 2px solid #94a3b8 !important;
+}
 .detail-rownum,
 .detail-frozen {
-  overflow: visible !important;
+  overflow: hidden !important;
 }
 
 /* ─── Text alignment ─── */
 .detail-num { text-align: center; }
-.detail-bold { font-weight: 600; }
 
-/* ─── Group background colors (Target / Achieved / Ach.%) ─── */
-.detail-target   { background: #f0f6ff !important; }  /* soft blue */
-.detail-achieved { background: #f0faf4 !important; }  /* soft green */
-.detail-pct      { background: #fffaf0 !important; }  /* soft amber */
-.detail-num.detail-target,
-.detail-num.detail-achieved,
-.detail-num.detail-pct { text-align: center; }
+/* ─── Metric group tints — every field cell gets a SOLID color per metric ─── */
+.detail-grid td.m-admisison { background: #e8f0fe !important; }
+.detail-grid td.m-attendance { background: #e6f7f1 !important; }
+.detail-grid td.m-emi-collection { background: #fef4e0 !important; }
+.detail-grid td.m-test { background: #fdecef !important; }
+.detail-grid tbody tr:hover td.m-admisison { background: #dbe7fd !important; }
+.detail-grid tbody tr:hover td.m-attendance { background: #d2f0e6 !important; }
+.detail-grid tbody tr:hover td.m-emi-collection { background: #fdeac4 !important; }
+.detail-grid tbody tr:hover td.m-test { background: #fbd9de !important; }
 
-/* hover overrides for group colors */
-.detail-grid tbody tr:hover td.detail-target   { background: #e0edff !important; }
-.detail-grid tbody tr:hover td.detail-achieved { background: #d9f5e4 !important; }
-.detail-grid tbody tr:hover td.detail-pct      { background: #fdf0d0 !important; }
+/* Sub-metric header row — solid tint matching its metric */
+.detail-grid thead .detail-submetric-row th.sub-m-admisison { background: #dbe7fd; }
+.detail-grid thead .detail-submetric-row th.sub-m-attendance { background: #d2f0e6; }
+.detail-grid thead .detail-submetric-row th.sub-m-emi-collection { background: #fdeac4; }
+.detail-grid thead .detail-submetric-row th.sub-m-test { background: #fbd9de; }
 
-/* ─── Conditional formatting (text + bg for ach%) ─── */
+/* ─── Heatmap % chips ─── */
+.heat {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 10px;
+  min-width: 42px;
+}
+.heat-90 { background: #15803d; color: #fff; }
+.heat-75 { background: #22c55e; color: #052e16; }
+.heat-60 { background: #a3e635; color: #1a2e05; }
+.heat-40 { background: #facc15; color: #422006; }
+.heat-25 { background: #fb923c; color: #431407; }
+.heat-0  { background: #ef4444; color: #fff; }
+
+/* ─── Score data bar ─── */
+.score-wrap {
+  position: relative;
+  width: 64px;
+  height: 18px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+}
+.score-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #e21b38, #f43f5e);
+  border-radius: 4px;
+}
+.score-txt {
+  position: relative;
+  z-index: 1;
+  font-weight: 700;
+  font-size: 10px;
+  color: #1e293b;
+  line-height: 18px;
+}
+
+/* ─── Search highlight + empty state ─── */
+mark.hl { background: #fde68a; color: #78350f; border-radius: 2px; padding: 0 1px; }
+.detail-empty {
+  padding: 40px !important;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+/* ─── Totals footer ─── */
+.detail-total-row td {
+  background: #eef2f7 !important;
+  border: 1px solid #d0d4dc;
+  font-weight: 700;
+  font-size: 10px;
+  color: #334155;
+  padding: 5px 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+.detail-total-row td.detail-frozen,
+.detail-total-row td.detail-rownum {
+  position: sticky;
+  z-index: 22;
+  background: #dde3ec !important;
+}
+
+/* ─── Conditional formatting (legacy text colors) ─── */
 .cf-green { color: #15803d; font-weight: 700; }
 .cf-amber { color: #a16207; font-weight: 700; }
 .cf-orange { color: #c2410c; font-weight: 700; }
@@ -361,6 +396,20 @@ select, input[type="text"] { outline: none; }
   transition: all 0.15s;
 }
 .detail-toolbar .search-wrap input:focus { border-color: #e21b38; box-shadow: 0 0 0 3px rgba(226,27,56,0.12); outline: none; }
+.detail-toolbar .search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+.detail-toolbar .search-clear:hover { color: #e21b38; }
 .detail-toolbar .btn {
   font-size: 12px;
   font-weight: 600;
@@ -378,18 +427,6 @@ select, input[type="text"] { outline: none; }
 }
 .detail-toolbar .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(226,27,56,0.35); }
 .detail-toolbar .btn i { color: #fff; }
-
-/* ─── Shadow on scroll for frozen columns ─── */
-.detail-frozen::after {
-  content: '';
-  position: absolute;
-  right: -6px;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  background: linear-gradient(to right, rgba(0,0,0,0.06), transparent);
-  pointer-events: none;
-}
 
 /* ─── Scrollbar for detail area ─── */
 #tab-detail ::-webkit-scrollbar { height: 14px; width: 14px; }
@@ -582,6 +619,55 @@ select, input[type="text"] { outline: none; }
 .dark .detail-toolbar .info .date-badge { background: #2a1418; color: #fda4af; border-color: #4a222c; }
 .dark .detail-toolbar .btn { background: linear-gradient(135deg, #e21b38, #b3142b); border: none; color: #fff; }
 .dark .detail-toolbar .btn:hover { background: linear-gradient(135deg, #f43f5e, #c81e3a); }
+
+/* ─── Detail grid: dark theme ─── */
+.dark .detail-grid thead th { background: #131318; color: #cbd5e1; border-color: #2b2b33; }
+.dark .detail-grid thead .detail-metric-row th.id-col,
+.dark .detail-grid thead .detail-metric-row th.grp-final,
+.dark .detail-grid thead th.id-col,
+.dark .detail-grid thead .detail-submetric-row th:nth-child(-n+3),
+.dark .detail-grid thead .detail-field-row th:nth-child(-n+3),
+.dark .detail-grid thead .detail-metric-row th.grp-final,
+.dark .detail-grid thead .detail-submetric-row th:nth-last-child(-n+3),
+.dark .detail-grid thead .detail-field-row th:nth-last-child(-n+3) {
+  background: #1e1e24 !important;
+  color: #e2e8f0;
+  border-color: #2b2b33 !important;
+}
+.dark .detail-grid thead .detail-field-row th { background: #16161c !important; color: #cbd5e1; }
+.dark .detail-grid thead .detail-field-row th:hover { background: #232327 !important; color: #fb7185; }
+.dark .detail-grid thead .detail-field-row th.f-pct { color: #fbbf24; }
+.dark .detail-grid thead .detail-submetric-row th:hover { filter: brightness(1.25); }
+.dark .detail-grid tbody tr td { background: #131318; color: #cbd5e1; border-color: #2b2b33; }
+.dark .detail-grid tbody tr:nth-child(even) td { background: #16161c; }
+.dark .detail-grid tbody tr:hover td { background: #2a1418 !important; }
+.dark .detail-rownum { background: #1a1a20 !important; color: #64748b; border-right-color: #2b2b33; }
+.dark .detail-frozen { background: #131318 !important; }
+.dark .detail-grid tbody tr:nth-child(even) td.detail-frozen { background: #16161c !important; }
+.dark .detail-grid tbody tr:nth-child(even) td.detail-rownum { background: #1a1a20 !important; }
+.dark .detail-fr-score { border-left-color: #3a3a44 !important; }
+.dark .detail-frozen-last { border-right-color: #3a3a44 !important; }
+.dark .detail-grid td.m-admisison { background: #16233c !important; }
+.dark .detail-grid td.m-attendance { background: #122b24 !important; }
+.dark .detail-grid td.m-emi-collection { background: #2e2613 !important; }
+.dark .detail-grid td.m-test { background: #331820 !important; }
+.dark .detail-grid tbody tr:hover td.m-admisison { background: #1d2e4f !important; }
+.dark .detail-grid tbody tr:hover td.m-attendance { background: #173a30 !important; }
+.dark .detail-grid tbody tr:hover td.m-emi-collection { background: #3d3319 !important; }
+.dark .detail-grid tbody tr:hover td.m-test { background: #45202a !important; }
+.dark .detail-grid thead .detail-submetric-row th.sub-m-admisison { background: #1c2a45; }
+.dark .detail-grid thead .detail-submetric-row th.sub-m-attendance { background: #173a30; }
+.dark .detail-grid thead .detail-submetric-row th.sub-m-emi-collection { background: #3d3319; }
+.dark .detail-grid thead .detail-submetric-row th.sub-m-test { background: #45202a; }
+.dark .score-wrap { background: #232327; }
+.dark .score-txt { color: #e2e8f0; }
+.dark mark.hl { background: #78350f; color: #fde68a; }
+.dark .detail-empty { color: #64748b; }
+.dark .detail-total-row td { background: #1e1e24 !important; color: #cbd5e1; border-color: #2b2b33; }
+.dark .detail-total-row td.detail-frozen,
+.dark .detail-total-row td.detail-rownum { background: #232327 !important; }
+.dark .search-clear { color: #94a3b8; }
+.dark .search-clear:hover { color: #fb7185; }
 
 /* ─── Footer ─── */
 .dark footer { color: #94a3b8; border-color: #2b2b33 !important; }

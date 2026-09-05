@@ -84,6 +84,8 @@ function cacheDOM() {
   DOM.rowCountLabel = document.getElementById('rowCountLabel');
   DOM.statusBarCount = document.getElementById('statusBarCount');
   DOM.detailSearch = document.getElementById('detailSearch');
+  DOM.detailSearchClear = document.getElementById('detailSearchClear');
+  DOM.sortHint = document.getElementById('sortHint');
   DOM.topWhyList = document.getElementById('topWhyList');
   DOM.bottomWhyList = document.getElementById('bottomWhyList');
   DOM.zoneInsightsList = document.getElementById('zoneInsightsList');
@@ -589,6 +591,18 @@ function wireEvents() {
   });
 
   DOM.detailSearch.addEventListener('input', debounce(renderLatestTable, 150));
+  DOM.detailSearchClear.addEventListener('click', () => {
+    DOM.detailSearch.value = '';
+    renderLatestTable();
+  });
+  DOM.latestTable.addEventListener('click', (e) => {
+    const th = e.target.closest('th[data-sort]');
+    if (!th) return;
+    const key = th.getAttribute('data-sort');
+    if (detailSort.key === key) detailSort.dir = -detailSort.dir;
+    else detailSort = { key, dir: 1 };
+    renderLatestTable();
+  });
 }
 
 function getFilters() {
@@ -1314,8 +1328,49 @@ function scoreGradientStyle(v, min, max) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   DETAILED DATA — PROFESSIONAL SINGLE-COLOR EXCEL GRID
+   DETAILED DATA — METRIC-GROUPED EXCEL GRID
+   Columns grouped by metric (Admission | Attendance | EMI | Test),
+   each sub-metric showing Target | Cap | Achieved | %. Frozen left
+   (identity + heads) and frozen right (Score/Rank/Z-Rank), sortable
+   headers, heatmap % chips, score data bars, totals footer, search
+   highlight and an empty state.
    ═══════════════════════════════════════════════════════════════ */
+
+let detailSort = { key: 'overallRank', dir: 1 };
+
+const METRIC_COLORS = { 'Admisison': '#3b82f6', 'Attendance': '#10b981', 'EMI Collection': '#f59e0b', 'Test': '#e21b38' };
+
+function metricSlug(m) { return 'm-' + m.replace(/\s+/g, '-').toLowerCase(); }
+
+function fmtNum(v) {
+  if (v == null) return '\u2014';
+  return Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+}
+
+function hlText(text, search) {
+  const esc = escapeHtml(String(text == null ? '' : text));
+  if (!search) return esc;
+  const re = new RegExp('(' + search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+  return esc.replace(re, '<mark class="hl">$1</mark>');
+}
+
+function pctHeat(v) {
+  if (v == null) return '<span class="cf-na">\u2014</span>';
+  let cls;
+  if (v >= 90) cls = 'heat-90';
+  else if (v >= 75) cls = 'heat-75';
+  else if (v >= 60) cls = 'heat-60';
+  else if (v >= 40) cls = 'heat-40';
+  else if (v >= 25) cls = 'heat-25';
+  else cls = 'heat-0';
+  return '<span class="heat ' + cls + '">' + v.toFixed(1) + '%</span>';
+}
+
+function scoreCell(v) {
+  if (v == null) return '\u2014';
+  const pct = Math.max(0, Math.min(100, v));
+  return '<div class="score-wrap"><div class="score-bar" style="width:' + pct + '%"></div><span class="score-txt">' + v.toFixed(1) + '%</span></div>';
+}
 
 function renderLatestTable() {
   const f = getFilters();
@@ -1328,176 +1383,181 @@ function renderLatestTable() {
     return (r.center + ' ' + r.region + ' ' + r.zone + ' ' + r.businessHead + ' ' + r.centerHead).toLowerCase().includes(search);
   });
 
-  // ─── Column definitions ───
-  // Only 4 frozen: #, Region, Center, Zone
-  const ID_COLS = ['#','Region','Center','Zone'];
-
-  // Target columns — dynamically generated from DATA.meta.smList like Achieved/Ach%
-  const smList = DATA.meta.smList;
-  function makeTgtFields() {
-    var fields = [];
-    smList.forEach(function(sm) {
-      fields.push({group:'Targets', metric:sm.metric, sub:sm.sub, field:'Target', key:sm.key+'Target'});
-      fields.push({group:'Targets', metric:sm.metric, sub:sm.sub, field:'Cap', key:sm.key+'Cap'});
-    });
-    return fields;
-  }
-  const tgtFields = makeTgtFields(); // 2 entries per sub-metric (Target + Cap)
-
-  // Achieved columns (1 per sub-metric)
-  const achFields = smList.map(sm => ({
-    group:'Achieved', metric:sm.metric, sub:sm.sub, field:'Achieved', key:sm.key+'Achieved'
-  }));
-
-  // Ach% columns (1 per sub-metric)
-  const pctFields = smList.map(sm => ({
-    group:'Ach. %', metric:sm.metric, sub:sm.sub, field:'%', key:sm.key+'AchPct', isPct:true
-  }));
-
-  const ALL_FIELDS = [].concat(tgtFields, achFields, pctFields);
-
-  // Final score columns (3)
-  const FINAL_COLS = [
-    {name:'Score', key:'scorePct', isPct:true},
-    {name:'Rank', key:'overallRank'},
-    {name:'Z-Rank', key:'zonalRank'}
+  // ─── Column model ───
+  const ID_COLS = [
+    { id: 'rownum', label: '#', width: 36, sortKey: null },
+    { id: 'region', label: 'Region', width: 90, sortKey: 'region' },
+    { id: 'center', label: 'Center', width: 150, sortKey: 'center' },
+    { id: 'zone', label: 'Zone', width: 60, sortKey: 'zone' },
+    { id: 'bh', label: 'BH', width: 90, sortKey: 'businessHead' },
+    { id: 'ch', label: 'CH', width: 90, sortKey: 'centerHead' }
   ];
+  const smList = DATA.meta.smList;
+  const metricGroups = DATA.meta.metrics.map(m => ({ metric: m, subs: smList.filter(sm => sm.metric === m) }));
+  const FIELD_COLS = [];
+  metricGroups.forEach(g => {
+    g.subs.forEach(sm => {
+      FIELD_COLS.push({ id: 'target', metric: g.metric, sub: sm.sub, field: 'Target', key: sm.key + 'Target', width: 62, sortKey: sm.key + 'Target' });
+      FIELD_COLS.push({ id: 'cap', metric: g.metric, sub: sm.sub, field: 'Cap', key: sm.key + 'Cap', width: 56, sortKey: sm.key + 'Cap' });
+      FIELD_COLS.push({ id: 'achieved', metric: g.metric, sub: sm.sub, field: 'Achieved', key: sm.key + 'Achieved', width: 70, sortKey: sm.key + 'Achieved' });
+      FIELD_COLS.push({ id: 'pct', metric: g.metric, sub: sm.sub, field: '%', key: sm.key + 'AchPct', width: 62, sortKey: sm.key + 'AchPct', isPct: true });
+    });
+  });
+  const FINAL_COLS = [
+    { id: 'score', label: 'Score', width: 72, sortKey: 'scorePct', isScore: true },
+    { id: 'rank', label: 'Rank', width: 48, sortKey: 'overallRank' },
+    { id: 'zrank', label: 'Z-Rank', width: 54, sortKey: 'zonalRank' }
+  ];
+  const ALL_COLS = [].concat(ID_COLS, FIELD_COLS, FINAL_COLS);
+  const nId = ID_COLS.length, nField = FIELD_COLS.length;
+  const FROZEN_N = 3; // freeze only #, Region, Center — BH/CH scroll with data
 
-  // ─── Column enumeration ───
-  const totalCols = ID_COLS.length + ALL_FIELDS.length + FINAL_COLS.length;
+  // Frozen left positions (only #, Region, Center — right side scrolls normally)
+  const frozenPos = [];
+  let acc = 0;
+  ID_COLS.forEach(c => { frozenPos.push(acc); acc += c.width; });
 
-  // Frozen columns: #(0), Region(38), Center(128), Zone(278)
-  const frozenPos = [0, 38, 128, 278];
-  const idWidths = [36, 90, 150, 60];
-
-  function isFrozen(ci) { return ci < ID_COLS.length; }
-
-  function fStyle(ci, z, w) {
-    var s = '';
-    if (isFrozen(ci)) s += 'position:sticky;left:' + frozenPos[ci] + 'px;z-index:' + z + ';';
-    if (w) s += 'min-width:' + w + 'px;';
-    if (s) return ' style="' + s + '"';
-    return '';
+  // ─── Sorting ───
+  const sk = detailSort.key, dir = detailSort.dir;
+  if (sk) {
+    rows = rows.slice().sort((a, b) => {
+      const va = a[sk], vb = b[sk];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+      return String(va).localeCompare(String(vb)) * dir;
+    });
   }
 
-  // ─── 3-row color-coded header ───
-  // Row 0: Groups (Targets | Achieved | Ach. % | Final) — colored
-  // Row 1: Metrics — tinted to match group
-  // Row 2: Sub-metric / field names
+  // ─── Header ───
+  const sortInd = (key) => sk === key ? (dir === 1 ? ' \u25B2' : ' \u25BC') : '';
+  let h = '<thead>';
 
-  var h = '<thead>';
-
-  // Row 0: Groups
-  h += '<tr class="detail-group-row">';
-  for (let ci = 0; ci < ID_COLS.length; ci++) {
-    h += '<th class="id-col"' + fStyle(ci, 44) + '>' + (ci === 0 ? '#' : ID_COLS[ci]) + '</th>';
-  }
-  h += '<th colspan="' + tgtFields.length + '" class="grp-targets"' + fStyle(ID_COLS.length, 44) + '>Targets</th>';
-  h += '<th colspan="' + achFields.length + '" class="grp-achieved"' + fStyle(ID_COLS.length + tgtFields.length, 44) + '>Achieved</th>';
-  h += '<th colspan="' + pctFields.length + '" class="grp-pct"' + fStyle(ID_COLS.length + tgtFields.length + achFields.length, 44) + '>Ach. %</th>';
-  for (let fi = 0; fi < FINAL_COLS.length; fi++) {
-    h += '<th class="grp-final"' + fStyle(ID_COLS.length + ALL_FIELDS.length + fi, 44) + '>' + FINAL_COLS[fi].name + '</th>';
-  }
-  h += '</tr>';
-
-  // Row 1: Metrics
+  // Row 0: Metric groups (solid metric colors)
   h += '<tr class="detail-metric-row">';
-  for (let ci = 0; ci < ID_COLS.length; ci++) {
-    h += '<th' + fStyle(ci, 38) + '></th>';
-  }
-  for (let fi = 0; fi < ALL_FIELDS.length; fi++) {
-    const fld = ALL_FIELDS[fi];
-    const gcls = fld.group === 'Targets' ? 'm-targets' : fld.group === 'Achieved' ? 'm-achieved' : 'm-pct';
-    h += '<th class="' + gcls + '"' + fStyle(ID_COLS.length + fi, 38) + '>' + fld.metric + '</th>';
-  }
-  for (let fi = 0; fi < FINAL_COLS.length; fi++) {
-    h += '<th' + fStyle(ID_COLS.length + ALL_FIELDS.length + fi, 38) + '></th>';
-  }
+  ID_COLS.forEach((c, ci) => {
+    const fr = ci < FROZEN_N ? 'left:' + frozenPos[ci] + 'px;' : '';
+    h += '<th class="id-col"' + (c.sortKey ? ' data-sort="' + c.sortKey + '"' : '') + ' style="' + fr + 'min-width:' + c.width + 'px">' + c.label + '</th>';
+  });
+  metricGroups.forEach(g => {
+    const color = METRIC_COLORS[g.metric] || '#64748b';
+    h += '<th colspan="' + (g.subs.length * 4) + '" style="background:' + color + ';color:#fff">' + escapeHtml(g.metric) + '</th>';
+  });
+  h += '<th colspan="3" class="grp-final">Final</th>';
   h += '</tr>';
 
-  // Row 2: Sub-metric / field
+  // Row 1: Sub-metrics (tinted, sortable by their Ach%)
+  h += '<tr class="detail-submetric-row">';
+  ID_COLS.forEach((c, ci) => {
+    const fr = ci < FROZEN_N ? 'left:' + frozenPos[ci] + 'px;' : '';
+    h += '<th style="' + fr + 'min-width:' + c.width + 'px"></th>';
+  });
+  metricGroups.forEach(g => {
+    const color = METRIC_COLORS[g.metric] || '#64748b';
+    g.subs.forEach(sm => {
+      h += '<th colspan="4" data-sort="' + sm.key + 'AchPct" class="sub-' + metricSlug(g.metric) + '" style="color:' + color + '">' + escapeHtml(sm.sub) + sortInd(sm.key + 'AchPct') + '</th>';
+    });
+  });
+  FINAL_COLS.forEach(c => {
+    h += '<th></th>';
+  });
+  h += '</tr>';
+
+  // Row 2: Fields (sortable)
   h += '<tr class="detail-field-row">';
-  for (let ci = 0; ci < ID_COLS.length; ci++) {
-    h += '<th' + fStyle(ci, 32) + '></th>';
-  }
-  for (let fi = 0; fi < ALL_FIELDS.length; fi++) {
-    const fld = ALL_FIELDS[fi];
-    let label = fld.sub;
-    if (fld.field && fld.field !== 'Achieved' && fld.field !== '%') {
-      label += ' (' + fld.field + ')';
-    } else if (fld.field === '%') {
-      label += ' %';
-    }
-    h += '<th' + fStyle(ID_COLS.length + fi, 32) + '>' + label + '</th>';
-  }
-  for (let fi = 0; fi < FINAL_COLS.length; fi++) {
-    h += '<th' + fStyle(ID_COLS.length + ALL_FIELDS.length + fi, 32) + '>' + FINAL_COLS[fi].name + '</th>';
-  }
+  ID_COLS.forEach((c, ci) => {
+    const fr = ci < FROZEN_N ? 'left:' + frozenPos[ci] + 'px;' : '';
+    h += '<th style="' + fr + 'min-width:' + c.width + 'px"></th>';
+  });
+  FIELD_COLS.forEach(c => {
+    h += '<th data-sort="' + c.sortKey + '" style="min-width:' + c.width + 'px"' + (c.isPct ? ' class="f-pct"' : '') + '>' + c.field + sortInd(c.sortKey) + '</th>';
+  });
+  FINAL_COLS.forEach(c => {
+    h += '<th data-sort="' + c.sortKey + '" style="min-width:' + c.width + 'px">' + c.label + sortInd(c.sortKey) + '</th>';
+  });
   h += '</tr></thead>';
 
   // ─── Body ───
-  function pctSpan(v) {
-    if (v == null) return '<span class="cf-na">\u2014</span>';
-    const cls = v >= 100 ? 'cf-green' : v >= 75 ? 'cf-amber' : v >= 50 ? 'cf-orange' : 'cf-red';
-    return '<span class="' + cls + '">' + v.toFixed(1) + '%</span>';
-  }
+  let body;
+  if (rows.length === 0) {
+    body = '<tbody><tr><td colspan="' + ALL_COLS.length + '" class="detail-empty">No centers match your filters or search.</td></tr></tbody>';
+  } else {
+    body = '<tbody>';
+    rows.forEach((r, ri) => {
+      const vals = [
+        String(ri + 1),
+        hlText(r.region, search),
+        hlText(r.center, search),
+        hlText(r.zone, search),
+        hlText(r.businessHead, search),
+        hlText(r.centerHead, search)
+      ];
+      FIELD_COLS.forEach(c => {
+        const raw = r[c.key];
+        vals.push(c.isPct ? pctHeat(raw) : fmtNum(raw));
+      });
+      vals.push(scoreCell(r.scorePct), r.overallRank != null ? r.overallRank : '\u2014', r.zonalRank != null ? r.zonalRank : '\u2014');
 
-  let body = '<tbody>';
-  for (let ri = 0; ri < rows.length; ri++) {
-    const r = rows[ri];
-    const vals = [
-      String(ri + 1),
-      r.region || '\u2014',
-      r.center || '\u2014',
-      r.zone || '\u2014'
-    ];
-
-    // Data fields
-    for (let fi = 0; fi < ALL_FIELDS.length; fi++) {
-      const fld = ALL_FIELDS[fi];
-      const raw = r[fld.key];
-      if (fld.isPct) {
-        vals.push(pctSpan(raw));
-      } else {
-        vals.push(raw != null ? raw : '\u2014');
+      body += '<tr>';
+      for (let ci = 0; ci < vals.length; ci++) {
+        let cls = 'detail-cell';
+        let style = '';
+        if (ci === 0) {
+          cls = 'detail-rownum';
+          style = ' style="left:0px;min-width:' + ID_COLS[0].width + 'px"';
+        } else if (ci < FROZEN_N) {
+          cls += ' detail-frozen' + (ci === FROZEN_N - 1 ? ' detail-frozen-last' : '');
+          style = ' style="left:' + frozenPos[ci] + 'px;min-width:' + ID_COLS[ci].width + 'px"';
+        } else if (ci < nId) {
+          style = ' style="min-width:' + ID_COLS[ci].width + 'px"';
+        } else if (ci >= nId + nField) {
+          const fc = FINAL_COLS[ci - nId - nField];
+          cls += (fc.isScore ? ' detail-fr-score' : '') + ' detail-num';
+          style = ' style="min-width:' + fc.width + 'px"';
+        } else {
+          const fc = FIELD_COLS[ci - nId];
+          cls += (fc.isPct ? ' detail-num detail-pct' : ' detail-num') + ' ' + metricSlug(fc.metric);
+          style = ' style="min-width:' + fc.width + 'px"';
+        }
+        body += '<td class="' + cls + '"' + style + '>' + vals[ci] + '</td>';
       }
-    }
-
-    // Final cols
-    vals.push(
-      r.scorePct != null
-        ? '<span class="' + (r.scorePct >= 80 ? 'cf-green' : r.scorePct >= 60 ? 'cf-amber' : 'cf-red') + '">' + r.scorePct.toFixed(1) + '%</span>'
-        : '\u2014',
-      r.overallRank != null ? r.overallRank : '\u2014',
-      r.zonalRank != null ? r.zonalRank : '\u2014'
-    );
-
-    // Column ranges for group coloring
-    const tSt = ID_COLS.length, tEn = tSt + tgtFields.length;
-    const aSt = tEn,       aEn = aSt + achFields.length;
-    const pSt = aEn,       pEn = pSt + pctFields.length;
-
-    body += '<tr>';
-    for (let ci = 0; ci < vals.length; ci++) {
-      let cls = 'detail-cell';
-      if (ci === 0) cls = 'detail-rownum';
-      else if (isFrozen(ci)) cls += ' detail-frozen' + (ci === 3 ? ' detail-frozen-zone' : '');
-      else if (ci >= tSt && ci < tEn) cls += ' detail-num detail-target';
-      else if (ci >= aSt && ci < aEn) cls += ' detail-num detail-achieved';
-      else if (ci >= pSt)              cls += ' detail-num detail-pct';
-      else                              cls += ' detail-num';
-
-      body += '<td class="' + cls + '"' + (isFrozen(ci) ? ' style="left:' + frozenPos[ci] + 'px"' : '') + '>';
-      body += vals[ci];
-      body += '</td>';
-    }
-    body += '</tr>';
+      body += '</tr>';
+    });
+    body += '</tbody>';
   }
-  body += '</tbody>';
 
-  DOM.latestTable.innerHTML = h + body;
-  if (DOM.rowCountLabel) DOM.rowCountLabel.textContent = rows.length + ' rows';
+  // ─── Footer (totals) ───
+  let foot = '<tfoot><tr class="detail-total-row">';
+  foot += '<td class="detail-rownum" style="left:0px;min-width:' + ID_COLS[0].width + 'px"></td>';
+  foot += '<td class="detail-frozen" style="left:' + frozenPos[1] + 'px;min-width:' + ID_COLS[1].width + 'px">Total</td>';
+  foot += '<td class="detail-frozen detail-frozen-last" style="left:' + frozenPos[2] + 'px;min-width:' + ID_COLS[2].width + 'px">' + rows.length + ' centers</td>';
+  for (let ci = FROZEN_N; ci < nId; ci++) {
+    foot += '<td style="min-width:' + ID_COLS[ci].width + 'px"></td>';
+  }
+  FIELD_COLS.forEach(c => {
+    if (c.isPct) {
+      const vals = rows.map(r => r[c.key]).filter(v => v != null);
+      const avg = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+      foot += '<td class="detail-num detail-pct ' + metricSlug(c.metric) + '" style="min-width:' + c.width + 'px">' + (avg != null ? avg.toFixed(1) + '%' : '\u2014') + '</td>';
+    } else {
+      const sum = rows.reduce((s, r) => s + (r[c.key] != null ? r[c.key] : 0), 0);
+      foot += '<td class="detail-num ' + metricSlug(c.metric) + '" style="min-width:' + c.width + 'px">' + fmtNum(sum) + '</td>';
+    }
+  });
+  const avgScore = rows.length ? rows.reduce((s, r) => s + (r.scorePct != null ? r.scorePct : 0), 0) / rows.length : null;
+  foot += '<td class="detail-fr-score" style="min-width:' + FINAL_COLS[0].width + 'px">' + (avgScore != null ? avgScore.toFixed(1) + '%' : '\u2014') + '</td>';
+  foot += '<td style="min-width:' + FINAL_COLS[1].width + 'px"></td>';
+  foot += '<td style="min-width:' + FINAL_COLS[2].width + 'px"></td>';
+  foot += '</tr></tfoot>';
+
+  DOM.latestTable.innerHTML = h + body + foot;
+  if (DOM.rowCountLabel) DOM.rowCountLabel.textContent = rows.length + ' of ' + DATA.latestTable.length + ' centers';
   if (DOM.statusBarCount) DOM.statusBarCount.textContent = rows.length + ' records \u00b7 Filtered from ' + DATA.latestTable.length;
+  if (DOM.sortHint) {
+    const label = sk === 'overallRank' ? 'Rank' : sk === 'scorePct' ? 'Score' : sk === 'zonalRank' ? 'Z-Rank' : sk;
+    DOM.sortHint.textContent = 'Sorted by ' + label + (dir === 1 ? ' \u25B2' : ' \u25BC');
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════

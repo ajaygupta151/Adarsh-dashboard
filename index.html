@@ -334,7 +334,8 @@
           <div class="actions">
             <div class="search-wrap">
               <i class="fa-solid fa-search"></i>
-              <input id="detailSearch" type="text" placeholder="Search center, region…">
+              <input id="detailSearch" type="text" placeholder="Search center, region, head…">
+              <button id="detailSearchClear" class="search-clear" title="Clear search"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <button id="exportCsvBtn" class="btn"><i class="fa-solid fa-download"></i> Export</button>
           </div>
@@ -347,6 +348,7 @@
         <div class="detail-statusbar">
           <span class="stat">READY</span>
           <span id="statusBarCount" class="muted"></span>
+          <span id="sortHint" class="muted"></span>
           <span class="right"><i class="fa-regular fa-copyright"></i> VP Dashboard</span>
         </div>
       </section>
