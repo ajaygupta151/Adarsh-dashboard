@@ -280,6 +280,26 @@ bars per sub-metric: Target, Min/Max Cap, and Achieved — as **raw numbers**
 100 students, we achieved 85." If you also pick a Sub-Metric filter, it
 zooms into just that one sub-metric.
 
+**Admission is special:** its Target / Cap / Achieved are **counts**
+(number of admissions), NOT percentages — so the Admission chart is drawn
+as a **line graph** (from the first date in the data up to your selected
+date, scrollable) and shows **rounded whole numbers** with no "%" sign.
+A small note under the chart explains this, so nobody mistakes 137 for a
+percentage.
+
+### 📜 Scrollable charts with frozen labels
+The Top 10 / Bottom 10, Zone Performance, and Sub-Metric charts can have
+many bars. To keep the bar names readable, the chart area scrolls
+horizontally while the Y-axis labels stay frozen in place — like freezing
+the first column in Excel. The chart auto-scrolls to the rightmost
+(latest) data when it loads.
+
+### 💡 Insight boxes
+Under the main charts there are small "💡" boxes that translate the chart
+into one plain-English sentence, e.g. "AP & TS leads with avg 61.2, while
+South trails at 21.6." You can read the insight without having to
+interpret the chart yourself.
+
 ### 🏢 Zone Wise tab / Region Wise tab
 Same centers, same scores — just organized into cards grouped by Zone or
 by Region, sorted best-to-worst within each card. Score numbers are
@@ -293,6 +313,11 @@ new columns automatically if the sheet gets a new sub-metric). Has a
 search box (type a center name, region, zone, or head's name to filter
 instantly) and color-coded percentage cells (green ≥100%, amber ≥75%,
 orange ≥50%, red below that).
+
+The table was redesigned with a **3-row sticky header** (metric name on
+top, sub-metric names below, color-coded), a toolbar with a live
+"showing X of Y rows" counter, and full dark-mode support — the header
+stays visible while you scroll through hundreds of rows.
 
 ### ⬇️ Export CSV button
 Downloads exactly what's shown in the Detailed Data tab (respecting your
@@ -359,6 +384,94 @@ edit the CODE every time the business adds a new metric.
 | Filter | A dropdown that narrows down which rows are used in calculations |
 | Rank | A center's position compared to others, based on score |
 | CORS | A browser security rule that sometimes blocks fetching data from another website directly |
+| Cap Utilization | Achieved ÷ Cap, shown as a % — how much of the allowed ceiling was actually used |
+| Leaderboard | A ranked list (top 10 / bottom 10) of heads or centers, best first |
+| Frozen-Y | A chart whose Y-axis labels stay fixed while the bars scroll horizontally |
+| Insight box | A "💡" sentence under a chart that explains its main takeaway in plain English |
+| Histogram | A bar chart that counts how many centers fall into each score range (e.g. 0–10, 10–20) |
+| Stacked bar | A bar split into colored segments — each segment is one metric's contribution |
+
+---
+
+## 10. The Detailed Overview Tab (the "analytics room")
+
+The Overview tab answers "who's winning right now?" The **Detailed
+Overview** tab answers "WHY — and what should we focus on?" It's a second
+tab (the 🥧 icon) with **11 charts**, each with its own 💡 insight box.
+Every chart here respects your filters — including the **date**: pick an
+older date and every chart recomputes using that day's scores (score =
+sum of Column N, Overall Achievement %, for that date).
+
+### 1. 📈 Metric Achievement Trend
+A line chart with one line per metric across **all dates** in the sheet.
+Shows whether each metric is improving or slipping over time.
+
+### 2. ⚖️ Weight vs Achievement
+For each metric, two bars side by side: how much **weight** it carries in
+the score (e.g. Test = 35%) vs how much it **actually achieves** (e.g.
+11.9%). The insight box flags the biggest gap — "Test carries 35% of the
+score but achieves only 11.9% — the biggest focus opportunity."
+
+### 3. 🏙️ Region Ranking
+Average score per region, sorted best to worst. The insight names the
+leader and the laggard (e.g. "AP & TS leads with avg 61.2, while South
+trails at 21.6").
+
+### 4. 📊 Score Distribution (histogram)
+Counts how many centers fall into each score band (0–10, 10–20, … 70–80).
+Instantly shows the shape of the business — e.g. "63 of 111 centers score
+below 30 — the weak zone. Only 24 score 50+."
+
+### 5. 🔥 Zone × Metric Heatmap
+A 24-cell grid (6 zones × 4 metrics). Each cell is the average
+achievement % for that zone+metric, colored green→red by value. The
+insight highlights the weakest cell (e.g. "Zone5 × Test at only 7.1%").
+
+### 6. 🏢 Business Head Leaderboard
+Top 10 and bottom 10 Business Heads by average score of their centers.
+Each bar's label shows the head's name **plus their Center Heads** on a
+second line (e.g. "Satya Prakash + Master Vishal Pandith / CH: Atul
+Kumar"). **Hover** a bar to see the exact centers that head manages.
+
+### 7. 🚀 Most Improved / Declined Centers
+Compares each center's score on the **first date** in the data vs the
+**selected date**, and shows the 5 biggest improvers and 5 biggest
+decliners (e.g. "Ahmedabad - Satellite Vidyapeeth improved the most:
++33.2 points").
+
+### 8. 🏆 Zone Ranking
+Average score per zone, sorted — a quick "which zone is strongest"
+answer (e.g. "Zone3 leads with avg 36.0, while Zone5 trails at 25.2").
+
+### 9. ⚙️ Cap Utilization
+For each metric on the selected date: total Achieved ÷ total Cap, as a %.
+Shows whether targets are set too tight or too loose (e.g. "Attendance
+uses 101.0% of its cap — over the ceiling; Admission only 77.8%").
+
+### 10. 🧩 Metric Contribution to Score
+A **stacked bar per zone** — each bar is split into 4 colored segments,
+one per metric, showing how many points each metric contributes to the
+zone's average score. Answers "which metric is doing the heavy lifting?"
+
+### 11. 👤 Center Head Leaderboard
+Top 10 and bottom 10 Center Heads by average score of their centers.
+Labels show the Center Head **plus their Business Head** on a second
+line, and hovering shows the centers they manage.
+
+---
+
+## 11. Recent Enhancements (changelog)
+
+| # | Enhancement | What changed |
+|---|---|---|
+| 1 | **Detailed Overview tab** | A whole new tab with 11 analytics charts (see Section 10), each with an English insight box. |
+| 2 | **Admission line chart** | In the Sub-Metric section, Admission is drawn as a scrollable line graph (first date → selected date) with rounded whole numbers, because its Target/Cap/Achieved are **counts**, not percentages. A note under the chart explains this. |
+| 3 | **Frozen-Y scrollable charts** | Top/Bottom 10, Zone Performance, and Sub-Metric charts scroll horizontally while Y-axis labels stay frozen; they auto-scroll to the latest data on load. |
+| 4 | **Insight boxes** | 💡 plain-English sentences under the main charts (Top 10, Bottom 10, Zone, Heatmap, Trend, and all 11 Detailed Overview charts). |
+| 5 | **Detailed Data table redesign** | 3-row sticky color-coded header, toolbar with live row counter, dark-mode support. |
+| 6 | **Leaderboard labels** | Business Head and Center Head leaderboards show BOTH names (BH + CH) on two lines, and hovering a bar lists the centers that head manages. |
+| 7 | **Date-filter consistency** | The Detailed Overview now uses the **selected date's** scores everywhere (sum of Column N for that date), matching the Overview tab — previously it always showed the latest date. |
+| 8 | **Dark mode coverage** | All new cards, tables, and charts render correctly in dark mode. |
 
 ---
 
