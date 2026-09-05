@@ -1265,12 +1265,6 @@ function renderLatestTable() {
 
   // ─── Column enumeration ───
   const totalCols = ID_COLS.length + ALL_FIELDS.length + FINAL_COLS.length;
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const colLetters = [];
-  for (let i = 0; i < totalCols; i++) {
-    if (i < 26) colLetters.push(letters[i]);
-    else colLetters.push('A' + letters[i - 26]);
-  }
 
   // Frozen columns: #(0), Region(38), Center(128), Zone(278)
   const frozenPos = [0, 38, 128, 278];
@@ -1286,52 +1280,45 @@ function renderLatestTable() {
     return '';
   }
 
-  // ─── 4-row single-color header ───
-  // Row 0: Letters (A B C...)
-  // Row 1: Groups (Targets | Achieved | Ach. %)
-  // Row 2: Metrics
-  // Row 3: Sub-metric / field names
+  // ─── 3-row color-coded header ───
+  // Row 0: Groups (Targets | Achieved | Ach. % | Final) — colored
+  // Row 1: Metrics — tinted to match group
+  // Row 2: Sub-metric / field names
 
   var h = '<thead>';
 
-  // Row 0: Letters
-  h += '<tr class="detail-letter-row">';
-  for (let ci = 0; ci < totalCols; ci++) {
-    const w = ci < ID_COLS.length ? idWidths[ci] : 64;
-    h += '<th' + fStyle(ci, 50, w) + '>' + colLetters[ci] + '</th>';
-  }
-  h += '</tr>';
-
-  // Row 1: Groups
+  // Row 0: Groups
   h += '<tr class="detail-group-row">';
   for (let ci = 0; ci < ID_COLS.length; ci++) {
-    h += '<th' + fStyle(ci, 44) + '>' + (ci === 0 ? '' : ID_COLS[ci]) + '</th>';
+    h += '<th class="id-col"' + fStyle(ci, 44) + '>' + (ci === 0 ? '#' : ID_COLS[ci]) + '</th>';
   }
-  h += '<th colspan="' + tgtFields.length + '"' + fStyle(ID_COLS.length, 44) + '>Targets</th>';
-  h += '<th colspan="' + achFields.length + '"' + fStyle(ID_COLS.length + tgtFields.length, 44) + '>Achieved</th>';
-  h += '<th colspan="' + pctFields.length + '"' + fStyle(ID_COLS.length + tgtFields.length + achFields.length, 44) + '>Ach. %</th>';
+  h += '<th colspan="' + tgtFields.length + '" class="grp-targets"' + fStyle(ID_COLS.length, 44) + '>Targets</th>';
+  h += '<th colspan="' + achFields.length + '" class="grp-achieved"' + fStyle(ID_COLS.length + tgtFields.length, 44) + '>Achieved</th>';
+  h += '<th colspan="' + pctFields.length + '" class="grp-pct"' + fStyle(ID_COLS.length + tgtFields.length + achFields.length, 44) + '>Ach. %</th>';
   for (let fi = 0; fi < FINAL_COLS.length; fi++) {
-    h += '<th' + fStyle(ID_COLS.length + ALL_FIELDS.length + fi, 44) + '>' + FINAL_COLS[fi].name + '</th>';
+    h += '<th class="grp-final"' + fStyle(ID_COLS.length + ALL_FIELDS.length + fi, 44) + '>' + FINAL_COLS[fi].name + '</th>';
   }
   h += '</tr>';
 
-  // Row 2: Metrics
+  // Row 1: Metrics
   h += '<tr class="detail-metric-row">';
   for (let ci = 0; ci < ID_COLS.length; ci++) {
     h += '<th' + fStyle(ci, 38) + '></th>';
   }
   for (let fi = 0; fi < ALL_FIELDS.length; fi++) {
-    h += '<th' + fStyle(ID_COLS.length + fi, 38) + '>' + ALL_FIELDS[fi].metric + '</th>';
+    const fld = ALL_FIELDS[fi];
+    const gcls = fld.group === 'Targets' ? 'm-targets' : fld.group === 'Achieved' ? 'm-achieved' : 'm-pct';
+    h += '<th class="' + gcls + '"' + fStyle(ID_COLS.length + fi, 38) + '>' + fld.metric + '</th>';
   }
   for (let fi = 0; fi < FINAL_COLS.length; fi++) {
     h += '<th' + fStyle(ID_COLS.length + ALL_FIELDS.length + fi, 38) + '></th>';
   }
   h += '</tr>';
 
-  // Row 3: Sub-metric / field
+  // Row 2: Sub-metric / field
   h += '<tr class="detail-field-row">';
   for (let ci = 0; ci < ID_COLS.length; ci++) {
-    h += '<th' + fStyle(ci, 32) + '>' + ID_COLS[ci] + '</th>';
+    h += '<th' + fStyle(ci, 32) + '></th>';
   }
   for (let fi = 0; fi < ALL_FIELDS.length; fi++) {
     const fld = ALL_FIELDS[fi];
