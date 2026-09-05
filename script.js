@@ -46,11 +46,11 @@ function cacheDOM() {
   DOM.latestDateLabel = document.getElementById('latestDateLabel');
 
   DOM.filterDate = document.getElementById('filterDate');
-  DOM.filterRegion = document.getElementById('filterRegion');
-  DOM.filterZone = document.getElementById('filterZone');
-  DOM.filterCenter = document.getElementById('filterCenter');
-  DOM.filterMetric = document.getElementById('filterMetric');
-  DOM.filterSubmetric = document.getElementById('filterSubmetric');
+  DOM.filterRegion = document.getElementById('ddRegion');
+  DOM.filterZone = document.getElementById('ddZone');
+  DOM.filterCenter = document.getElementById('ddCenter');
+  DOM.filterMetric = document.getElementById('ddMetric');
+  DOM.filterSubmetric = document.getElementById('ddSubmetric');
   DOM.resetFiltersBtn = document.getElementById('resetFiltersBtn');
   DOM.latestSearch = document.getElementById('latestSearch');
   DOM.exportCsvBtn = document.getElementById('exportCsvBtn');
@@ -435,22 +435,22 @@ function round2_(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
    ═══════════════════════════════════════════════════════════════ */
 function populateFilters() {
   fillSelect(DOM.filterDate, DATA.meta.dates.map(d => ({ v: d, l: d })), DATA.meta.lastUpdatedRaw);
-  fillSelect(DOM.filterRegion, [{ v: 'All', l: 'All Regions' }, ...DATA.meta.regions.map(r => ({ v: r, l: r }))], 'All');
-  fillSelect(DOM.filterZone, [{ v: 'All', l: 'All Zones' }, ...DATA.meta.zones.map(z => ({ v: z, l: z }))], 'All');
-  fillSelect(DOM.filterMetric, [{ v: 'All', l: 'All Metrics' }, ...DATA.meta.metrics.map(m => ({ v: m, l: m }))], 'All');
+  msFill('ddRegion', DATA.meta.regions.map(r => ({ v: r, l: r })));
+  msFill('ddZone', DATA.meta.zones.map(z => ({ v: z, l: z })));
+  msFill('ddMetric', DATA.meta.metrics.map(m => ({ v: m, l: m })));
   populateSubmetricFilter();
   populateCenterFilter();
 }
 
-/* Sub-Metric options cascade from the selected Metric — only sub-metrics that
-   actually belong to that metric (per DATA.meta.smList) are shown. When
-   "All Metrics" is selected, every sub-metric across all metrics is shown;
-   if the same sub-metric text exists under more than one metric, its label
-   is disambiguated with the metric name so the selection stays unambiguous. */
+/* Sub-Metric options cascade from the selected Metric(s) — only sub-metrics that
+   actually belong to those metrics (per DATA.meta.smList) are shown. When no
+   metric is selected, every sub-metric across all metrics is shown; if the same
+   sub-metric text exists under more than one metric, its label is disambiguated
+   with the metric name so the selection stays unambiguous. */
 function populateSubmetricFilter() {
-  const metricSel = DOM.filterMetric.value || 'All';
+  const metricSel = msGet('ddMetric');
   let entries = DATA.meta.smList;
-  if (metricSel !== 'All') entries = entries.filter(sm => sm.metric === metricSel);
+  if (metricSel.length > 0) entries = entries.filter(sm => metricSel.includes(sm.metric));
 
   const subTextCount = {};
   entries.forEach(sm => { subTextCount[sm.sub] = (subTextCount[sm.sub] || 0) + 1; });
@@ -459,23 +459,102 @@ function populateSubmetricFilter() {
     v: sm.metric + '||' + sm.sub,
     l: subTextCount[sm.sub] > 1 ? (sm.sub + ' (' + sm.metric + ')') : sm.sub
   }));
-  const cur = DOM.filterSubmetric.value;
-  fillSelect(DOM.filterSubmetric, [{ v: 'All', l: 'All Sub-Metrics' }, ...opts], opts.some(o => o.v === cur) ? cur : 'All');
+  msFill('ddSubmetric', opts);
 }
 
 function populateCenterFilter() {
-  const region = DOM.filterRegion.value || 'All';
-  const zone = DOM.filterZone.value || 'All';
+  const region = msGet('ddRegion');
+  const zone = msGet('ddZone');
   const centers = DATA.meta.centersMeta
-    .filter(c => (region === 'All' || c.region === region) && (zone === 'All' || c.zone === zone))
+    .filter(c => (region.length === 0 || region.includes(c.region)) && (zone.length === 0 || zone.includes(c.zone)))
     .map(c => ({ v: c.name, l: c.name }));
-  const cur = DOM.filterCenter.value;
-  fillSelect(DOM.filterCenter, [{ v: 'All', l: 'All Centers' }, ...centers], centers.some(c => c.v === cur) ? cur : 'All');
+  msFill('ddCenter', centers);
 }
 
 function fillSelect(el, opts, sel) {
   el.innerHTML = opts.map(o => '<option value="' + o.v + '" ' + (o.v === sel ? 'selected' : '') + '>' + o.l + '</option>').join('');
 }
+
+/* ─── Multi-select dropdown helpers ───
+   Semantics: "All" checkbox at top. When it (or nothing) is checked, the
+   selection is [] which means "everything". Checking specific options returns
+   the array of checked values. */
+function msFill(ddId, opts) {
+  const dd = document.getElementById(ddId);
+  const panel = dd.querySelector('.ms-panel');
+  const allLabel = dd.querySelector('.ms-btn').getAttribute('data-all-label') || 'All';
+  const prev = msGet(ddId);
+  const allChecked = prev.length === 0;
+  let html = '<label class="ms-opt flex items-center gap-2"><input type="checkbox" value="All" class="ms-cb" ' + (allChecked ? 'checked' : '') + '> <span>' + allLabel + '</span></label>';
+  html += opts.map(o => {
+    const checked = !allChecked && prev.includes(o.v) ? 'checked' : '';
+    return '<label class="ms-opt flex items-center gap-2"><input type="checkbox" value="' + escapeHtml(o.v) + '" data-label="' + escapeHtml(o.l) + '" class="ms-cb" ' + checked + '> <span>' + escapeHtml(o.l) + '</span></label>';
+  }).join('');
+  panel.innerHTML = html;
+  msLabel(ddId);
+}
+
+function msGet(ddId) {
+  const panel = document.getElementById(ddId).querySelector('.ms-panel');
+  const checked = Array.from(panel.querySelectorAll('.ms-cb:checked')).map(cb => cb.value);
+  if (checked.length === 0 || checked.includes('All')) return [];
+  return checked;
+}
+
+function msLabel(ddId) {
+  const dd = document.getElementById(ddId);
+  const labelEl = dd.querySelector('.ms-label');
+  const allLabel = dd.querySelector('.ms-btn').getAttribute('data-all-label') || 'All';
+  const panel = dd.querySelector('.ms-panel');
+  const checked = Array.from(panel.querySelectorAll('.ms-cb:checked'));
+  if (checked.length === 0 || checked.some(c => c.value === 'All')) {
+    labelEl.textContent = allLabel;
+  } else if (checked.length <= 2) {
+    labelEl.textContent = checked.map(c => c.getAttribute('data-label') || c.value).join(', ');
+  } else {
+    labelEl.textContent = checked.length + ' selected';
+  }
+}
+
+function msReset(ddId) {
+  const panel = document.getElementById(ddId).querySelector('.ms-panel');
+  panel.querySelectorAll('.ms-cb').forEach(c => { c.checked = c.value === 'All'; });
+  msLabel(ddId);
+}
+
+function msWire(ddId, onChange) {
+  const dd = document.getElementById(ddId);
+  const btn = dd.querySelector('.ms-btn');
+  const panel = dd.querySelector('.ms-panel');
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('.ms-panel.open').forEach(p => { if (p !== panel) p.classList.remove('open'); });
+    panel.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!dd.contains(e.target)) panel.classList.remove('open');
+  });
+  panel.addEventListener('change', (e) => {
+    const cb = e.target;
+    if (!cb.classList.contains('ms-cb')) return;
+    if (cb.value === 'All') {
+      panel.querySelectorAll('.ms-cb').forEach(c => { c.checked = cb.checked; });
+    } else if (cb.checked) {
+      // User checked a specific box: if "All" was checked, uncheck it so the
+      // selection narrows to the checked boxes only.
+      const allCb = panel.querySelector('.ms-cb[value="All"]');
+      if (allCb.checked) allCb.checked = false;
+      const specific = Array.from(panel.querySelectorAll('.ms-cb')).filter(c => c.value !== 'All');
+      if (specific.every(c => c.checked)) allCb.checked = true;
+    } else {
+      panel.querySelector('.ms-cb[value="All"]').checked = false;
+    }
+    msLabel(ddId);
+    if (onChange) onChange();
+  });
+}
+
+function inFilter(val, arr) { return arr.length === 0 || arr.includes(val); }
 
 function wireEvents() {
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -489,22 +568,22 @@ function wireEvents() {
     });
   });
 
-  DOM.filterRegion.addEventListener('change', () => { populateCenterFilter(); renderAll(); });
-  DOM.filterZone.addEventListener('change', () => { populateCenterFilter(); renderAll(); });
+  msWire('ddRegion', () => { populateCenterFilter(); renderAll(); });
+  msWire('ddZone', () => { populateCenterFilter(); renderAll(); });
   DOM.filterDate.addEventListener('change', renderAll);
-  DOM.filterCenter.addEventListener('change', renderAll);
-  DOM.filterMetric.addEventListener('change', () => { populateSubmetricFilter(); renderAll(); });
-  DOM.filterSubmetric.addEventListener('change', renderAll);
+  msWire('ddCenter', renderAll);
+  msWire('ddMetric', () => { populateSubmetricFilter(); renderAll(); });
+  msWire('ddSubmetric', renderAll);
 
   DOM.resetFiltersBtn.addEventListener('click', () => {
     fillSelect(DOM.filterDate, DATA.meta.dates.map(d => ({ v: d, l: d })), DATA.meta.lastUpdatedRaw);
-    DOM.filterRegion.value = 'All';
-    DOM.filterZone.value = 'All';
-    DOM.filterMetric.value = 'All';
+    msReset('ddRegion');
+    msReset('ddZone');
+    msReset('ddMetric');
     populateSubmetricFilter();
-    DOM.filterSubmetric.value = 'All';
+    msReset('ddSubmetric');
     populateCenterFilter();
-    DOM.filterCenter.value = 'All';
+    msReset('ddCenter');
     DOM.detailSearch.value = '';
     renderAll();
   });
@@ -514,18 +593,18 @@ function wireEvents() {
 
 function getFilters() {
   return {
-    date: DOM.filterDate.value, region: DOM.filterRegion.value,
-    zone: DOM.filterZone.value, center: DOM.filterCenter.value,
-    metric: DOM.filterMetric.value, submetric: DOM.filterSubmetric.value
+    date: DOM.filterDate.value, region: msGet('ddRegion'),
+    zone: msGet('ddZone'), center: msGet('ddCenter'),
+    metric: msGet('ddMetric'), submetric: msGet('ddSubmetric')
   };
 }
 
 function computeScoresForDate(date, f) {
   const rows = DATA.rawRows.filter(r =>
     r.date === date &&
-    (f.region === 'All' || r.region === f.region) &&
-    (f.zone === 'All' || r.zone === f.zone) &&
-    (f.center === 'All' || r.center === f.center)
+    inFilter(r.region, f.region) &&
+    inFilter(r.zone, f.zone) &&
+    inFilter(r.center, f.center)
   );
   const byCenter = {};
   rows.forEach(r => {
@@ -537,9 +616,9 @@ function computeScoresForDate(date, f) {
 
 function filteredCenterSummary(f) {
   return DATA.centerSummary.filter(c =>
-    (f.region === 'All' || c.region === f.region) &&
-    (f.zone === 'All' || c.zone === f.zone) &&
-    (f.center === 'All' || c.center === f.center)
+    inFilter(c.region, f.region) &&
+    inFilter(c.zone, f.zone) &&
+    inFilter(c.center, f.center)
   );
 }
 
@@ -674,13 +753,25 @@ function renderFrozenYChart(cfg) {
   }).join('');
   fy.style.height = canvasH + 'px';
 
-  // HTML legend (below the chart)
+  // HTML legend (below the chart) — click a label to show/hide that line
   const legend = document.getElementById(cfg.legendId);
   if (legend) {
-    legend.innerHTML = cfg.datasets.map(ds => {
+    legend.innerHTML = cfg.datasets.map((ds, i) => {
       const c = ds.borderColor || ds.backgroundColor;
-      return '<span class="flex items-center gap-1.5" style="color:' + cfg.tickColor + '"><span style="width:10px;height:3px;border-radius:2px;background:' + c + ';display:inline-block"></span>' + ds.label + '</span>';
+      return '<span data-idx="' + i + '" class="flex items-center gap-1.5 cursor-pointer select-none" style="color:' + cfg.tickColor + '" title="Click to show/hide"><span style="width:10px;height:3px;border-radius:2px;background:' + c + ';display:inline-block"></span>' + ds.label + '</span>';
     }).join('');
+    legend.querySelectorAll('[data-idx]').forEach(item => {
+      item.addEventListener('click', () => {
+        const idx = parseInt(item.getAttribute('data-idx'), 10);
+        const chart = CHARTS[cfg.chartKey];
+        if (!chart || !chart.data.datasets[idx]) return;
+        const ds = chart.data.datasets[idx];
+        ds.hidden = !ds.hidden;
+        chart.update();
+        item.style.opacity = ds.hidden ? '0.35' : '1';
+        item.style.textDecoration = ds.hidden ? 'line-through' : 'none';
+      });
+    });
   }
 
   // Chart (dates on X-axis, % on Y-axis)
@@ -780,9 +871,9 @@ function renderTopBottomInsights(f) {
   // Per-center per-metric breakdown for the selected date (sum of overallAchPct)
   const rows = DATA.rawRows.filter(r =>
     r.date === f.date &&
-    (f.region === 'All' || r.region === f.region) &&
-    (f.zone === 'All' || r.zone === f.zone) &&
-    (f.center === 'All' || r.center === f.center)
+    inFilter(r.region, f.region) &&
+    inFilter(r.zone, f.zone) &&
+    inFilter(r.center, f.center)
   );
   const byCenter = {};
   rows.forEach(r => {
@@ -836,11 +927,11 @@ function renderTopBottomInsights(f) {
    average of those center scores. Returns { dates, zones, series } where
    series[zone] = [value per date] (null when a zone has no centers that day). */
 function computeZoneSeries(f) {
-  const center = f.center === 'All' ? null : f.center;
+  const center = f.center.length === 0 ? null : f.center;
   const baseRows = DATA.rawRows.filter(r =>
-    (f.region === 'All' || r.region === f.region) &&
-    (f.zone  === 'All' || r.zone  === f.zone) &&
-    (!center || r.center === center)
+    inFilter(r.region, f.region) &&
+    inFilter(r.zone, f.zone) &&
+    (!center || center.includes(r.center))
   );
   const dates = DATA.meta.dates;
   const centerScoresByDate = {};
@@ -960,8 +1051,8 @@ function renderZoneInsights(f) {
 
 function renderHeatmap(f) {
   const rows = DATA.rawRows.filter(r =>
-    r.date === f.date && (f.region === 'All' || r.region === f.region) &&
-    (f.zone === 'All' || r.zone === f.zone) && (f.center === 'All' || r.center === f.center)
+    r.date === f.date && inFilter(r.region, f.region) &&
+    inFilter(r.zone, f.zone) && inFilter(r.center, f.center)
   );
   const regions = uniq(rows.map(r => r.region)).sort();
   const metrics = DATA.meta.metrics;
@@ -1014,11 +1105,11 @@ function heatClass(v) { return v >= 60 ? 'score-high' : v >= 30 ? 'score-mid' : 
 function renderTrendChart(f) {
   // Always ALL metrics — each metric gets its own line
   // Filter applies ONLY to center/region/zone (NOT metric)
-  const center = f.center === 'All' ? null : f.center;
+  const center = f.center.length === 0 ? null : f.center;
   const baseRows = DATA.rawRows.filter(r =>
-    (f.region === 'All' || r.region === f.region) &&
-    (f.zone  === 'All' || r.zone  === f.zone) &&
-    (!center || r.center === center)
+    inFilter(r.region, f.region) &&
+    inFilter(r.zone, f.zone) &&
+    (!center || center.includes(r.center))
   );
 
   const dates = DATA.meta.dates;
@@ -1230,9 +1321,9 @@ function renderLatestTable() {
   const f = getFilters();
   const search = (DOM.detailSearch.value || '').toLowerCase().trim();
   let rows = DATA.latestTable.filter(r => {
-    if (f.region !== 'All' && r.region !== f.region) return false;
-    if (f.zone !== 'All' && r.zone !== f.zone) return false;
-    if (f.center !== 'All' && r.center !== f.center) return false;
+    if (!inFilter(r.region, f.region)) return false;
+    if (!inFilter(r.zone, f.zone)) return false;
+    if (!inFilter(r.center, f.center)) return false;
     if (!search) return true;
     return (r.center + ' ' + r.region + ' ' + r.zone + ' ' + r.businessHead + ' ' + r.centerHead).toLowerCase().includes(search);
   });
@@ -1415,9 +1506,9 @@ function renderLatestTable() {
 function exportCsv() {
   const f = getFilters();
   const rows = DATA.latestTable.filter(r => {
-    if (f.region !== 'All' && r.region !== f.region) return false;
-    if (f.zone !== 'All' && r.zone !== f.zone) return false;
-    if (f.center !== 'All' && r.center !== f.center) return false;
+    if (!inFilter(r.region, f.region)) return false;
+    if (!inFilter(r.zone, f.zone)) return false;
+    if (!inFilter(r.center, f.center)) return false;
     return true;
   });
 
@@ -1463,35 +1554,35 @@ function renderSubMetricCharts(f) {
   });
   container.innerHTML = '';
 
-  // Sub-Metric filter value is a compound "metric||sub" key (see
-  // populateSubmetricFilter). When set, it pins the drill-down to that exact
-  // metric and, within it, that single sub-metric.
-  let pinnedSub = null; // { metric, sub } or null
-  if (f.submetric && f.submetric !== 'All') {
-    const parts = f.submetric.split('||');
-    pinnedSub = { metric: parts[0], sub: parts.slice(1).join('||') };
-  }
+  // Sub-Metric filter values are compound "metric||sub" keys (see
+  // populateSubmetricFilter). When set, they pin the drill-down to those exact
+  // metrics and, within each, that single sub-metric.
+  let pinnedSubs = []; // array of { metric, sub }
+  f.submetric.forEach(key => {
+    const parts = key.split('||');
+    pinnedSubs.push({ metric: parts[0], sub: parts.slice(1).join('||') });
+  });
 
   let metrics = [];
   let labelPrefix = '';
-  if (pinnedSub) {
-    metrics = [pinnedSub.metric];
-    labelPrefix = pinnedSub.metric + ' \u2014 ' + pinnedSub.sub;
-  } else if (f.metric === 'All') {
+  if (pinnedSubs.length > 0) {
+    metrics = pinnedSubs.map(p => p.metric);
+    labelPrefix = pinnedSubs.length === 1 ? (pinnedSubs[0].metric + ' \u2014 ' + pinnedSubs[0].sub) : (pinnedSubs.length + ' sub-metrics');
+  } else if (f.metric.length === 0) {
     metrics = DATA.meta.metrics;
     labelPrefix = 'All Metrics';
   } else {
-    metrics = [f.metric];
-    labelPrefix = f.metric;
+    metrics = f.metric;
+    labelPrefix = f.metric.join(', ');
   }
   if (subtitle) subtitle.textContent = labelPrefix + ' \u2014 Target vs Min/Max Cap vs Achieved by sub-metric';
 
   // Base rows filtered by region/zone/center (but NOT metric)
   const baseRows = DATA.rawRows.filter(r =>
     r.date === f.date &&
-    (f.region === 'All' || r.region === f.region) &&
-    (f.zone   === 'All' || r.zone   === f.zone) &&
-    (f.center === 'All' || r.center === f.center)
+    inFilter(r.region, f.region) &&
+    inFilter(r.zone, f.zone) &&
+    inFilter(r.center, f.center)
   );
 
   if (baseRows.length === 0) {
@@ -1508,7 +1599,8 @@ function renderSubMetricCharts(f) {
     metricRows.forEach(r => {
       const sub = String(r.subMetric || 'Overall').trim();
       if (!sub || sub === 'None' || sub === '-') return;
-      if (pinnedSub && sub !== pinnedSub.sub) return;
+      const pin = pinnedSubs.find(p => p.metric === r.metric);
+      if (pin && sub !== pin.sub) return;
       if (!bySub[sub]) bySub[sub] = { targetSum: 0, capSum: 0, achievedSum: 0, count: 0 };
       bySub[sub].targetSum += (r.target  != null ? r.target : 0);
       bySub[sub].capSum    += (r.cap     != null ? r.cap : 0);
@@ -1529,7 +1621,7 @@ function renderSubMetricCharts(f) {
     card.className = 'bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5';
 
     let headerHtml = '';
-    if (f.metric === 'All') {
+    if (f.metric.length === 0) {
       headerHtml = '<div class="flex items-center gap-2 mb-3">' +
         '<div class="w-7 h-7 rounded-lg bg-gradient-to-br from-red-500 to-red-800 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-bar"></i></div>' +
         '<h3 class="font-semibold text-sm">' + escapeHtml(metric) + '</h3>' +
@@ -1545,7 +1637,8 @@ function renderSubMetricCharts(f) {
     const isLine = metric.toLowerCase() === 'admisison';
     if (isLine) {
       card.innerHTML = headerHtml +
-        '<div class="chart-scroll-wrap"><div class="chart-frozen-y" id="submetric-fy-' + cardIdx + '"></div><div class="relative" id="submetric-wrap-' + cardIdx + '"><canvas id="submetric-canvas-' + cardIdx + '"></canvas></div></div>';
+        '<div class="chart-scroll-wrap"><div class="chart-frozen-y" id="submetric-fy-' + cardIdx + '"></div><div class="relative" id="submetric-wrap-' + cardIdx + '"><canvas id="submetric-canvas-' + cardIdx + '"></canvas></div></div>' +
+        '<div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px]" id="submetric-legend-' + cardIdx + '"></div>';
     } else {
       card.innerHTML = headerHtml +
         '<div class="relative" style="height:300px"><canvas id="submetric-canvas-' + cardIdx + '"></canvas></div>';
@@ -1559,9 +1652,9 @@ function renderSubMetricCharts(f) {
       const dates = selIdx >= 0 ? allDates.slice(0, selIdx + 1) : allDates;
       const trendRows = DATA.rawRows.filter(r =>
         dates.includes(r.date) &&
-        (f.region === 'All' || r.region === f.region) &&
-        (f.zone   === 'All' || r.zone   === f.zone) &&
-        (f.center === 'All' || r.center === f.center)
+        inFilter(r.region, f.region) &&
+        inFilter(r.zone, f.zone) &&
+        inFilter(r.center, f.center)
       );
       const byDate = {};
       dates.forEach(d => { byDate[d] = { t: 0, c: 0, a: 0, n: 0 }; });
@@ -1589,7 +1682,7 @@ function renderSubMetricCharts(f) {
       renderFrozenYChart({
         wrapId: 'submetric-wrap-' + cardIdx,
         frozenYId: 'submetric-fy-' + cardIdx,
-        legendId: null,
+        legendId: 'submetric-legend-' + cardIdx,
         canvasId: 'submetric-canvas-' + cardIdx,
         chartKey: 'submetric-' + cardIdx,
         dates,
@@ -1674,7 +1767,8 @@ function renderSubMetricCharts(f) {
         metricRows.forEach(r => {
           const sub = String(r.subMetric || 'Overall').trim();
           if (!sub || sub === 'None' || sub === '-') return;
-          if (pinnedSub && sub !== pinnedSub.sub) return;
+          const pin = pinnedSubs.find(p => p.metric === r.metric);
+          if (pin && sub !== pin.sub) return;
           if (!bySub2[sub]) bySub2[sub] = { targetSum: 0, achievedSum: 0, count: 0 };
           bySub2[sub].targetSum += (r.target != null ? r.target : 0);
           bySub2[sub].achievedSum += (r.achieved != null ? r.achieved : 0);
@@ -1709,9 +1803,9 @@ function renderDetailedOverview(f) {
 
   // Rows filtered by region/zone/center (all dates)
   const rows = DATA.rawRows.filter(r =>
-    (f.region === 'All' || r.region === f.region) &&
-    (f.zone   === 'All' || r.zone   === f.zone) &&
-    (f.center === 'All' || r.center === f.center)
+    inFilter(r.region, f.region) &&
+    inFilter(r.zone, f.zone) &&
+    inFilter(r.center, f.center)
   );
 
   // Per-center scores for the SELECTED date (sum of overallAchPct = Column N),

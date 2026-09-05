@@ -74,23 +74,53 @@
             </div>
             <div>
               <label class="block text-[10px] font-semibold uppercase tracking-wider text-red-600 mb-0.5">Region</label>
-              <select id="filterRegion" class="rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[120px] shadow-sm focus:ring-2 focus:ring-red-300"></select>
+              <div class="ms-dd relative" id="ddRegion">
+                <button type="button" data-all-label="All Regions" class="ms-btn rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[120px] shadow-sm flex items-center justify-between gap-1.5">
+                  <span class="ms-label truncate">All Regions</span>
+                  <i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
+                </button>
+                <div class="ms-panel absolute z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto min-w-[190px]"></div>
+              </div>
             </div>
             <div>
               <label class="block text-[10px] font-semibold uppercase tracking-wider text-red-600 mb-0.5">Zone</label>
-              <select id="filterZone" class="rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[100px] shadow-sm focus:ring-2 focus:ring-red-300"></select>
+              <div class="ms-dd relative" id="ddZone">
+                <button type="button" data-all-label="All Zones" class="ms-btn rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[100px] shadow-sm flex items-center justify-between gap-1.5">
+                  <span class="ms-label truncate">All Zones</span>
+                  <i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
+                </button>
+                <div class="ms-panel absolute z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto min-w-[150px]"></div>
+              </div>
             </div>
             <div>
               <label class="block text-[10px] font-semibold uppercase tracking-wider text-red-600 mb-0.5">Center</label>
-              <select id="filterCenter" class="rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[170px] shadow-sm focus:ring-2 focus:ring-red-300"></select>
+              <div class="ms-dd relative" id="ddCenter">
+                <button type="button" data-all-label="All Centers" class="ms-btn rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[170px] shadow-sm flex items-center justify-between gap-1.5">
+                  <span class="ms-label truncate">All Centers</span>
+                  <i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
+                </button>
+                <div class="ms-panel absolute z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto min-w-[220px]"></div>
+              </div>
             </div>
             <div>
               <label class="block text-[10px] font-semibold uppercase tracking-wider text-red-600 mb-0.5">Metric</label>
-              <select id="filterMetric" class="rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[170px] shadow-sm focus:ring-2 focus:ring-red-300"></select>
+              <div class="ms-dd relative" id="ddMetric">
+                <button type="button" data-all-label="All Metrics" class="ms-btn rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[170px] shadow-sm flex items-center justify-between gap-1.5">
+                  <span class="ms-label truncate">All Metrics</span>
+                  <i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
+                </button>
+                <div class="ms-panel absolute z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto min-w-[190px]"></div>
+              </div>
             </div>
             <div>
               <label class="block text-[10px] font-semibold uppercase tracking-wider text-red-600 mb-0.5">Sub-Metric</label>
-              <select id="filterSubmetric" class="rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[170px] shadow-sm focus:ring-2 focus:ring-red-300"></select>
+              <div class="ms-dd relative" id="ddSubmetric">
+                <button type="button" data-all-label="All Sub-Metrics" class="ms-btn rounded-lg border border-slate-200 bg-white text-sm px-2.5 py-1.5 min-w-[170px] shadow-sm flex items-center justify-between gap-1.5">
+                  <span class="ms-label truncate">All Sub-Metrics</span>
+                  <i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
+                </button>
+                <div class="ms-panel absolute z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto min-w-[190px]"></div>
+              </div>
             </div>
             <button id="resetFiltersBtn" class="text-xs bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 px-3 py-1.5 rounded-lg transition-all active:scale-95 flex items-center gap-1">
               <i class="fa-solid fa-rotate-left text-red-600"></i> Reset
