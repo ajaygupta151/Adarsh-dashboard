@@ -104,6 +104,7 @@
           <button class="tab-btn px-3.5 md:px-5 py-2 rounded-lg text-xs md:text-sm font-semibold bg-white/10 text-white/80" data-tab="zone"><i class="fa-solid fa-layer-group mr-1.5"></i>Zone Wise</button>
           <button class="tab-btn px-3.5 md:px-5 py-2 rounded-lg text-xs md:text-sm font-semibold bg-white/10 text-white/80" data-tab="region"><i class="fa-solid fa-earth-americas mr-1.5"></i>Region Wise</button>
           <button class="tab-btn px-3.5 md:px-5 py-2 rounded-lg text-xs md:text-sm font-semibold bg-white/10 text-white/80" data-tab="detail"><i class="fa-solid fa-table mr-1.5"></i>Detailed Data</button>
+          <button class="tab-btn px-3.5 md:px-5 py-2 rounded-lg text-xs md:text-sm font-semibold bg-white/10 text-white/80" data-tab="detailoverview"><i class="fa-solid fa-chart-pie mr-1.5"></i>Detailed Overview</button>
         </nav>
       </div>
     </header>
@@ -318,6 +319,149 @@
           <span id="statusBarCount" class="muted"></span>
           <span class="right"><i class="fa-regular fa-copyright"></i> VP Dashboard</span>
         </div>
+      </section>
+
+      <!-- ═══════ TAB 5: DETAILED OVERVIEW ═══════ -->
+      <section id="tab-detailoverview" class="tab-panel space-y-5">
+
+        <!-- Metric Achievement Trend -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-blue-900 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-line"></i></div>
+            <h3 class="font-semibold text-sm">Metric Achievement Trend</h3>
+            <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">all dates</span>
+          </div>
+          <div class="relative" style="height:300px"><canvas id="chartMetricTrend"></canvas></div>
+          <div id="insightMetricTrend" class="graph-insight"></div>
+        </div>
+
+        <!-- Weight vs Achievement + Region Ranking -->
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-amber-800 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-scale-balanced"></i></div>
+              <h3 class="font-semibold text-sm">Weight vs Achievement</h3>
+              <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">where to focus</span>
+            </div>
+            <div class="relative" style="height:280px"><canvas id="chartWeightVsAch"></canvas></div>
+            <div id="insightWeightVsAch" class="graph-insight"></div>
+          </div>
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-600 to-cyan-900 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-earth-asia"></i></div>
+              <h3 class="font-semibold text-sm">Region Ranking</h3>
+              <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">avg score</span>
+            </div>
+            <div class="relative" style="height:280px"><canvas id="chartRegionRank"></canvas></div>
+            <div id="insightRegionRank" class="graph-insight"></div>
+          </div>
+        </div>
+
+        <!-- Score Distribution + Zone × Metric Heatmap -->
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-violet-900 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-column"></i></div>
+              <h3 class="font-semibold text-sm">Score Distribution</h3>
+              <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">centers by score</span>
+            </div>
+            <div class="relative" style="height:280px"><canvas id="chartScoreDist"></canvas></div>
+            <div id="insightScoreDist" class="graph-insight"></div>
+          </div>
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-rose-500 to-rose-800 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-border-all"></i></div>
+              <h3 class="font-semibold text-sm">Zone × Metric Heatmap</h3>
+              <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">achievement %</span>
+            </div>
+            <div id="zoneMetricHeatmap" class="text-xs"></div>
+            <div id="insightHeatmap2" class="graph-insight"></div>
+          </div>
+        </div>
+
+        <!-- Business Head Leaderboard -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-600 to-emerald-900 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-user-tie"></i></div>
+            <h3 class="font-semibold text-sm">Business Head Leaderboard</h3>
+            <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">top vs bottom</span>
+          </div>
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div class="relative" style="height:280px"><canvas id="chartHeadTop"></canvas></div>
+            <div class="relative" style="height:280px"><canvas id="chartHeadBottom"></canvas></div>
+          </div>
+          <div id="insightHeads" class="graph-insight"></div>
+        </div>
+
+        <!-- Zone Ranking + Cap Utilization -->
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-900 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-layer-group"></i></div>
+              <h3 class="font-semibold text-sm">Zone Ranking</h3>
+              <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">avg score</span>
+            </div>
+            <div class="relative" style="height:280px"><canvas id="chartZoneRank"></canvas></div>
+            <div id="insightZoneRank" class="graph-insight"></div>
+          </div>
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-teal-600 to-teal-900 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-gauge"></i></div>
+              <h3 class="font-semibold text-sm">Cap Utilization</h3>
+              <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">achieved vs cap</span>
+            </div>
+            <div class="relative" style="height:280px"><canvas id="chartCapUtil"></canvas></div>
+            <div id="insightCapUtil" class="graph-insight"></div>
+          </div>
+        </div>
+
+        <!-- Metric Contribution to Score -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-orange-500 to-orange-800 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-chart-simple"></i></div>
+            <h3 class="font-semibold text-sm">Metric Contribution to Score</h3>
+            <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">stacked per zone</span>
+          </div>
+          <div class="relative" style="height:300px"><canvas id="chartMetricContrib"></canvas></div>
+          <div id="insightMetricContrib" class="graph-insight"></div>
+        </div>
+
+        <!-- Center Head Leaderboard -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-fuchsia-600 to-fuchsia-900 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-user-gear"></i></div>
+            <h3 class="font-semibold text-sm">Center Head Leaderboard</h3>
+            <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">top vs bottom</span>
+          </div>
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div class="relative" style="height:280px"><canvas id="chartCenterHeadTop"></canvas></div>
+            <div class="relative" style="height:280px"><canvas id="chartCenterHeadBottom"></canvas></div>
+          </div>
+          <div id="insightCenterHeads" class="graph-insight"></div>
+        </div>
+
+        <!-- Most Improved / Declined -->
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-600 to-emerald-900 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-arrow-trend-up"></i></div>
+              <h3 class="font-semibold text-sm">Most Improved Centers</h3>
+              <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">start → selected date</span>
+            </div>
+            <div class="relative" style="height:280px"><canvas id="chartMoversUp"></canvas></div>
+            <div id="insightMoversUp" class="graph-insight"></div>
+          </div>
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-rose-500 to-rose-800 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-arrow-trend-down"></i></div>
+              <h3 class="font-semibold text-sm">Most Declined Centers</h3>
+              <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">start → selected date</span>
+            </div>
+            <div class="relative" style="height:280px"><canvas id="chartMoversDown"></canvas></div>
+            <div id="insightMoversDown" class="graph-insight"></div>
+          </div>
+        </div>
+
       </section>
 
     </main>

@@ -485,7 +485,7 @@ function wireEvents() {
       btn.classList.add('active');
       const panel = document.getElementById('tab-' + btn.dataset.tab);
       if (panel) panel.classList.add('active');
-      if (btn.dataset.tab === 'overview') renderAll();
+      if (btn.dataset.tab === 'overview' || btn.dataset.tab === 'detailoverview') renderAll();
     });
   });
 
@@ -556,6 +556,7 @@ function renderAll() {
   renderZoneTab(f);
   renderRegionTab(f);
   renderLatestTable();
+  renderDetailedOverview(f);
 }
 
 /* ─── KPI + Insights ─── */
@@ -1692,6 +1693,545 @@ function renderSubMetricCharts(f) {
       } else {
         DOM.insightSubmetric.innerHTML = bulb + 'This chart shows <b>Target</b> (green), <b>Cap</b> (yellow) and <b>Achieved</b> (blue) for each sub-metric. Biggest gap: <b>' + escapeHtml(bestGap.sub) + '</b> (' + escapeHtml(bestGap.metric) + ') — target was <b>' + bestGap.target.toFixed(1) + '</b>, only <b>' + bestGap.achieved.toFixed(1) + '</b> achieved.' + admissionNote;
       }
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DETAILED OVERVIEW TAB — deep-dive visualizations
+   ═══════════════════════════════════════════════════════════════ */
+function renderDetailedOverview(f) {
+  const bulb = '<i class="fa-solid fa-lightbulb mr-1"></i>';
+  const dates = DATA.meta.dates;
+  const metrics = DATA.meta.metrics;
+  const metricColors = { 'Admisison': '#3b82f6', 'Attendance': '#10b981', 'EMI Collection': '#f59e0b', 'Test': '#e21b38' };
+  const shortMetric = { 'Admisison': 'Admission', 'Attendance': 'Attendance', 'EMI Collection': 'EMI', 'Test': 'Test' };
+
+  // Rows filtered by region/zone/center (all dates)
+  const rows = DATA.rawRows.filter(r =>
+    (f.region === 'All' || r.region === f.region) &&
+    (f.zone   === 'All' || r.zone   === f.zone) &&
+    (f.center === 'All' || r.center === f.center)
+  );
+
+  // Per-center scores for the SELECTED date (sum of overallAchPct = Column N),
+  // so every chart here respects the date filter like the rest of the dashboard.
+  const selRows = rows.filter(r => r.date === f.date);
+  const byCenter = {};
+  selRows.forEach(r => {
+    if (!byCenter[r.center]) {
+      byCenter[r.center] = {
+        center: r.center, region: r.region, zone: r.zone,
+        businessHead: r.businessHead, centerHead: r.centerHead,
+        totalScore: 0, metricScores: {}
+      };
+    }
+    const c = byCenter[r.center];
+    c.totalScore += (r.overallAchPct || 0);
+    c.metricScores[r.metric] = (c.metricScores[r.metric] || 0) + (r.overallAchPct || 0);
+  });
+  const centers = Object.values(byCenter).map(c => {
+    c.totalScore = Math.round(c.totalScore * 100) / 100;
+    metrics.forEach(m => { if (c.metricScores[m] != null) c.metricScores[m] = Math.round(c.metricScores[m] * 100) / 100; });
+    return c;
+  });
+
+  // ─── 1. Metric Achievement Trend (all dates) ───
+  const byDM = {};
+  rows.forEach(r => {
+    const k = r.date + '||' + r.metric;
+    if (!byDM[k]) byDM[k] = { sum: 0, n: 0 };
+    byDM[k].sum += (r.metricAchPct || 0);
+    byDM[k].n++;
+  });
+  const trendDatasets = metrics.map(m => ({
+    label: m,
+    data: dates.map(d => {
+      const k = d + '||' + m;
+      return byDM[k] && byDM[k].n > 0 ? Math.round(byDM[k].sum / byDM[k].n * 100) / 100 : null;
+    }),
+    borderColor: metricColors[m] || '#64748b',
+    backgroundColor: (metricColors[m] || '#64748b') + '22',
+    borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6, tension: 0.35, fill: false, spanGaps: true
+  }));
+  upsertChart('metricTrend', 'chartMetricTrend', {
+    type: 'line',
+    data: { labels: dates, datasets: trendDatasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 }, color: chartTickColor() } },
+        tooltip: { mode: 'index', intersect: false, callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + (ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) + '%' : '') } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: chartTickColor(), font: { size: 11 } } },
+        y: { beginAtZero: true, grid: { color: chartGridColor() }, ticks: { callback: v => v + '%', color: chartTickColor(), font: { size: 11 } } }
+      }
+    }
+  });
+  const insTrend = document.getElementById('insightMetricTrend');
+  if (insTrend) {
+    const lastVals = {};
+    metrics.forEach(m => { const k = f.date + '||' + m; lastVals[m] = byDM[k] && byDM[k].n > 0 ? byDM[k].sum / byDM[k].n : null; });
+    const withVal = metrics.filter(m => lastVals[m] != null);
+    if (withVal.length > 0) {
+      const bestM = withVal.slice().sort((a, b) => lastVals[b] - lastVals[a])[0];
+      const worstM = withVal.slice().sort((a, b) => lastVals[a] - lastVals[b])[0];
+      insTrend.innerHTML = bulb + 'On <b>' + f.date + '</b>: <b>' + escapeHtml(shortMetric[bestM] || bestM) + '</b> leads at <b>' + lastVals[bestM].toFixed(1) + '%</b>, while <b>' + escapeHtml(shortMetric[worstM] || worstM) + '</b> lags at <b>' + lastVals[worstM].toFixed(1) + '%</b>.';
+    } else {
+      insTrend.innerHTML = bulb + 'No data for this selection.';
+    }
+  }
+
+  // ─── 2. Weight vs Achievement (selected date) ───
+  const weightByMetric = {};
+  rows.forEach(r => { if (!weightByMetric[r.metric]) weightByMetric[r.metric] = r.overallWeight; });
+  const achByMetric = {};
+  rows.filter(r => r.date === f.date).forEach(r => {
+    if (!achByMetric[r.metric]) achByMetric[r.metric] = { sum: 0, n: 0 };
+    achByMetric[r.metric].sum += (r.metricAchPct || 0);
+    achByMetric[r.metric].n++;
+  });
+  upsertChart('weightVsAch', 'chartWeightVsAch', {
+    type: 'bar',
+    data: {
+      labels: metrics.map(m => shortMetric[m] || m),
+      datasets: [
+        { label: 'Weight %', data: metrics.map(m => weightByMetric[m] != null ? weightByMetric[m] : 0), backgroundColor: 'rgba(100,116,139,0.75)', borderColor: '#64748b', borderWidth: 1, borderRadius: 4 },
+        { label: 'Achieved %', data: metrics.map(m => achByMetric[m] && achByMetric[m].n > 0 ? Math.round(achByMetric[m].sum / achByMetric[m].n * 100) / 100 : 0), backgroundColor: 'rgba(226,27,56,0.8)', borderColor: '#e21b38', borderWidth: 1, borderRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 }, color: chartTickColor() } },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + ctx.parsed.y + '%' } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: chartTickColor(), font: { size: 11 } } },
+        y: { beginAtZero: true, grid: { color: chartGridColor() }, ticks: { callback: v => v + '%', color: chartTickColor(), font: { size: 11 } } }
+      }
+    }
+  });
+  const insWv = document.getElementById('insightWeightVsAch');
+  if (insWv) {
+    let bestOpp = null; // metric with biggest (weight - achievement)
+    metrics.forEach(m => {
+      const w = weightByMetric[m] != null ? weightByMetric[m] : 0;
+      const a = achByMetric[m] && achByMetric[m].n > 0 ? achByMetric[m].sum / achByMetric[m].n : 0;
+      const gap = w - a;
+      if (!bestOpp || gap > bestOpp.gap) bestOpp = { metric: m, w, a, gap };
+    });
+    if (bestOpp && bestOpp.w > 0) {
+      insWv.innerHTML = bulb + '<b>' + escapeHtml(shortMetric[bestOpp.metric] || bestOpp.metric) + '</b> carries <b>' + bestOpp.w + '%</b> of the score but achieves only <b>' + bestOpp.a.toFixed(1) + '%</b> — the biggest focus opportunity.';
+    } else {
+      insWv.innerHTML = bulb + 'No data for this selection.';
+    }
+  }
+
+  // ─── 3. Region Ranking (avg score) ───
+  const regionScores = {};
+  centers.forEach(c => {
+    if (!regionScores[c.region]) regionScores[c.region] = { sum: 0, n: 0 };
+    regionScores[c.region].sum += c.totalScore;
+    regionScores[c.region].n++;
+  });
+  const regionList = Object.keys(regionScores)
+    .map(r => ({ region: r, avg: Math.round(regionScores[r].sum / regionScores[r].n * 100) / 100, n: regionScores[r].n }))
+    .sort((a, b) => b.avg - a.avg);
+  upsertChart('regionRank', 'chartRegionRank', {
+    type: 'bar',
+    data: {
+      labels: regionList.map(r => r.region),
+      datasets: [{ label: 'Avg Score', data: regionList.map(r => r.avg), backgroundColor: regionList.map((r, i) => i < 3 ? 'rgba(16,185,129,0.85)' : 'rgba(59,130,246,0.75)'), borderRadius: 5, borderSkipped: false }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' Avg score: ' + ctx.parsed.x.toFixed(2) } }
+      },
+      scales: {
+        x: { grid: { color: chartGridColor() }, ticks: { color: chartTickColor(), font: { size: 11 } } },
+        y: { grid: { display: false }, ticks: { color: chartTickColor(), font: { size: 10 } } }
+      }
+    }
+  });
+  const insRegion = document.getElementById('insightRegionRank');
+  if (insRegion) {
+    if (regionList.length > 0) {
+      const bestR = regionList[0], worstR = regionList[regionList.length - 1];
+      insRegion.innerHTML = bulb + '<b>' + escapeHtml(bestR.region) + '</b> leads with avg <b>' + bestR.avg.toFixed(1) + '</b> (' + bestR.n + ' centers), while <b>' + escapeHtml(worstR.region) + '</b> trails at <b>' + worstR.avg.toFixed(1) + '</b>.';
+    } else {
+      insRegion.innerHTML = bulb + 'No data for this selection.';
+    }
+  }
+
+  // ─── 4. Score Distribution (histogram) ───
+  const buckets = [];
+  for (let i = 0; i <= 70; i += 10) buckets.push({ label: i + '-' + (i + 10), count: 0 });
+  centers.forEach(c => {
+    const idx = Math.min(Math.floor(c.totalScore / 10), 7);
+    buckets[idx].count++;
+  });
+  upsertChart('scoreDist', 'chartScoreDist', {
+    type: 'bar',
+    data: {
+      labels: buckets.map(b => b.label),
+      datasets: [{ label: 'Centers', data: buckets.map(b => b.count), backgroundColor: buckets.map(b => b.count > 0 ? 'rgba(139,92,246,0.8)' : 'rgba(139,92,246,0.15)'), borderRadius: 5, borderSkipped: false }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.parsed.y + ' centers' } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: chartTickColor(), font: { size: 11 } } },
+        y: { beginAtZero: true, grid: { color: chartGridColor() }, ticks: { color: chartTickColor(), font: { size: 11 } } }
+      }
+    }
+  });
+  const insDist = document.getElementById('insightScoreDist');
+  if (insDist) {
+    const weak = buckets.slice(0, 3).reduce((a, b) => a + b.count, 0);
+    const strong = buckets.slice(5).reduce((a, b) => a + b.count, 0);
+    insDist.innerHTML = bulb + '<b>' + weak + '</b> of <b>' + centers.length + '</b> centers score below 30 — the weak zone. Only <b>' + strong + '</b> score 50+.';
+  }
+
+  // ─── 5. Zone × Metric Heatmap (selected date) ───
+  const zones = DATA.meta.zones;
+  const byZM = {};
+  rows.filter(r => r.date === f.date).forEach(r => {
+    const k = r.zone + '||' + r.metric;
+    if (!byZM[k]) byZM[k] = { sum: 0, n: 0 };
+    byZM[k].sum += (r.metricAchPct || 0);
+    byZM[k].n++;
+  });
+  const heatEl = document.getElementById('zoneMetricHeatmap');
+  if (heatEl) {
+    const cell = (v) => {
+      if (v == null) return '<div style="background:#e2e8f0;color:#94a3b8;padding:9px 4px;text-align:center;border-radius:6px;font-weight:600">—</div>';
+      const val = Math.max(0, Math.min(100, v));
+      const hue = val / 100 * 120;
+      return '<div style="background:hsl(' + hue + ',70%,42%);color:#fff;padding:9px 4px;text-align:center;border-radius:6px;font-weight:600">' + val.toFixed(1) + '%</div>';
+    };
+    let html = '<div class="grid gap-1.5" style="grid-template-columns:64px repeat(' + metrics.length + ',1fr)">';
+    html += '<div></div>' + metrics.map(m => '<div class="text-center font-semibold text-slate-500 dark:text-slate-300 pb-1 truncate" title="' + escapeHtml(m) + '">' + escapeHtml(shortMetric[m] || m) + '</div>').join('');
+    zones.forEach(z => {
+      html += '<div class="flex items-center font-semibold text-slate-500 dark:text-slate-300">' + escapeHtml(z) + '</div>';
+      metrics.forEach(m => {
+        const k = z + '||' + m;
+        const v = byZM[k] && byZM[k].n > 0 ? byZM[k].sum / byZM[k].n : null;
+        html += cell(v);
+      });
+    });
+    html += '</div>';
+    heatEl.innerHTML = html;
+  }
+  const insHeat = document.getElementById('insightHeatmap2');
+  if (insHeat) {
+    let weakest = null; // { zone, metric, v }
+    zones.forEach(z => {
+      metrics.forEach(m => {
+        const k = z + '||' + m;
+        const v = byZM[k] && byZM[k].n > 0 ? byZM[k].sum / byZM[k].n : null;
+        if (v != null && (!weakest || v < weakest.v)) weakest = { zone: z, metric: m, v };
+      });
+    });
+    if (weakest) {
+      insHeat.innerHTML = bulb + 'Weakest cell: <b>' + escapeHtml(weakest.zone) + ' × ' + escapeHtml(shortMetric[weakest.metric] || weakest.metric) + '</b> at only <b>' + weakest.v.toFixed(1) + '%</b>.';
+    } else {
+      insHeat.innerHTML = bulb + 'No data for this selection.';
+    }
+  }
+
+  // ─── 6. Business Head Leaderboard ───
+  const heads = {};
+  centers.forEach(c => {
+    const h = c.businessHead || 'Unknown';
+    if (!heads[h]) heads[h] = { sum: 0, n: 0 };
+    heads[h].sum += c.totalScore;
+    heads[h].n++;
+  });
+  const headList = Object.keys(heads)
+    .map(h => ({ head: h, avg: Math.round(heads[h].sum / heads[h].n * 100) / 100, n: heads[h].n }))
+    .sort((a, b) => b.avg - a.avg);
+  const topHeads = headList.slice(0, 10);
+  const bottomHeads = headList.slice(-10).reverse();
+  const headBar = (chartId, list, color, subLabelFn, tooltipFn) => {
+    upsertChart(chartId, chartId, {
+      type: 'bar',
+      data: {
+        labels: list.map(h => h.head + (subLabelFn ? '\n' + subLabelFn(h) : '')),
+        datasets: [{ label: 'Avg Score', data: list.map(h => h.avg), backgroundColor: color, borderRadius: 5, borderSkipped: false }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const item = list[ctx.dataIndex];
+                const lines = ['Avg score: ' + item.avg.toFixed(2) + ' (' + item.n + ' center' + (item.n > 1 ? 's' : '') + ')'];
+                if (tooltipFn) lines.push(tooltipFn(item));
+                return lines;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { color: chartGridColor() }, ticks: { color: chartTickColor(), font: { size: 11 } } },
+          y: { grid: { display: false }, ticks: { color: chartTickColor(), font: { size: 10 }, autoSkip: false } }
+        }
+      }
+    });
+  };
+  // BH → their centers (with CH names) for labels & tooltips
+  const headCenters = {};
+  centers.forEach(c => {
+    const h = c.businessHead || 'Unknown';
+    if (!headCenters[h]) headCenters[h] = [];
+    headCenters[h].push({ center: c.center, ch: c.centerHead || '—' });
+  });
+  const bhSub = h => {
+    const chs = uniq((headCenters[h.head] || []).map(x => x.ch));
+    const shown = chs.slice(0, 2).join(', ');
+    return 'CH: ' + shown + (chs.length > 2 ? ' +' + (chs.length - 2) + ' more' : '');
+  };
+  const bhTip = h => {
+    const cs = (headCenters[h.head] || []).map(x => x.center);
+    const shown = cs.slice(0, 3).join(', ');
+    return 'Centers: ' + shown + (cs.length > 3 ? ' +' + (cs.length - 3) + ' more' : '');
+  };
+  headBar('chartHeadTop', topHeads, 'rgba(16,185,129,0.85)', bhSub, bhTip);
+  headBar('chartHeadBottom', bottomHeads, 'rgba(244,63,94,0.85)', bhSub, bhTip);
+  const insHeads = document.getElementById('insightHeads');
+  if (insHeads) {
+    if (headList.length > 0) {
+      insHeads.innerHTML = bulb + '<b>' + escapeHtml(topHeads[0].head) + '</b> leads with avg <b>' + topHeads[0].avg.toFixed(1) + '</b> across ' + topHeads[0].n + ' center(s); <b>' + escapeHtml(bottomHeads[bottomHeads.length - 1].head) + '</b> trails at <b>' + bottomHeads[bottomHeads.length - 1].avg.toFixed(1) + '</b>.';
+    } else {
+      insHeads.innerHTML = bulb + 'No data for this selection.';
+    }
+  }
+
+  // ─── 8. Zone Ranking (avg score) ───
+  const zoneScores = {};
+  centers.forEach(c => {
+    if (!zoneScores[c.zone]) zoneScores[c.zone] = { sum: 0, n: 0 };
+    zoneScores[c.zone].sum += c.totalScore;
+    zoneScores[c.zone].n++;
+  });
+  const zoneList = Object.keys(zoneScores)
+    .map(z => ({ zone: z, avg: Math.round(zoneScores[z].sum / zoneScores[z].n * 100) / 100, n: zoneScores[z].n }))
+    .sort((a, b) => b.avg - a.avg);
+  upsertChart('zoneRank', 'chartZoneRank', {
+    type: 'bar',
+    data: {
+      labels: zoneList.map(z => z.zone),
+      datasets: [{ label: 'Avg Score', data: zoneList.map(z => z.avg), backgroundColor: zoneList.map((z, i) => i < 2 ? 'rgba(16,185,129,0.85)' : 'rgba(99,102,241,0.75)'), borderRadius: 5, borderSkipped: false }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' Avg score: ' + ctx.parsed.x.toFixed(2) } }
+      },
+      scales: {
+        x: { grid: { color: chartGridColor() }, ticks: { color: chartTickColor(), font: { size: 11 } } },
+        y: { grid: { display: false }, ticks: { color: chartTickColor(), font: { size: 11 } } }
+      }
+    }
+  });
+  const insZoneRank = document.getElementById('insightZoneRank');
+  if (insZoneRank) {
+    if (zoneList.length > 0) {
+      insZoneRank.innerHTML = bulb + '<b>' + escapeHtml(zoneList[0].zone) + '</b> leads with avg <b>' + zoneList[0].avg.toFixed(1) + '</b>, while <b>' + escapeHtml(zoneList[zoneList.length - 1].zone) + '</b> trails at <b>' + zoneList[zoneList.length - 1].avg.toFixed(1) + '</b>.';
+    } else {
+      insZoneRank.innerHTML = bulb + 'No data for this selection.';
+    }
+  }
+
+  // ─── 9. Cap Utilization (selected date) ───
+  const capUtil = metrics.map(m => {
+    const rowsM = rows.filter(r => r.date === f.date && r.metric === m);
+    if (rowsM.length === 0) return { metric: m, util: null };
+    let capSum = 0, achSum = 0, n = 0;
+    rowsM.forEach(r => {
+      if (r.cap != null && r.cap > 0) { capSum += r.cap; achSum += (r.achieved != null ? r.achieved : 0); n++; }
+    });
+    return { metric: m, util: n > 0 ? Math.round(achSum / capSum * 10000) / 100 : null };
+  });
+  upsertChart('capUtil', 'chartCapUtil', {
+    type: 'bar',
+    data: {
+      labels: capUtil.map(c => shortMetric[c.metric] || c.metric),
+      datasets: [{ label: 'Cap Utilization %', data: capUtil.map(c => c.util != null ? c.util : 0), backgroundColor: capUtil.map(c => c.util != null && c.util >= 100 ? 'rgba(16,185,129,0.85)' : 'rgba(20,184,166,0.75)'), borderRadius: 5, borderSkipped: false }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.parsed.y.toFixed(1) + '% of cap' } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: chartTickColor(), font: { size: 11 } } },
+        y: { beginAtZero: true, grid: { color: chartGridColor() }, ticks: { callback: v => v + '%', color: chartTickColor(), font: { size: 11 } } }
+      }
+    }
+  });
+  const insCap = document.getElementById('insightCapUtil');
+  if (insCap) {
+    const withVal = capUtil.filter(c => c.util != null);
+    if (withVal.length > 0) {
+      const best = withVal.slice().sort((a, b) => b.util - a.util)[0];
+      const worst = withVal.slice().sort((a, b) => a.util - b.util)[0];
+      insCap.innerHTML = bulb + '<b>' + escapeHtml(shortMetric[best.metric] || best.metric) + '</b> uses <b>' + best.util.toFixed(1) + '%</b> of its cap; <b>' + escapeHtml(shortMetric[worst.metric] || worst.metric) + '</b> only <b>' + worst.util.toFixed(1) + '%</b>.';
+    } else {
+      insCap.innerHTML = bulb + 'No data for this selection.';
+    }
+  }
+
+  // ─── 10. Metric Contribution to Score (stacked, per zone) ───
+  const contribByZone = {};
+  centers.forEach(c => {
+    if (!contribByZone[c.zone]) contribByZone[c.zone] = { n: 0, sums: {} };
+    contribByZone[c.zone].n++;
+    metrics.forEach(m => {
+      const v = c.metricScores && c.metricScores[m] != null ? c.metricScores[m] : 0;
+      contribByZone[c.zone].sums[m] = (contribByZone[c.zone].sums[m] || 0) + v;
+    });
+  });
+  const zoneOrder = DATA.meta.zones;
+  const contribDatasets = metrics.map(m => ({
+    label: shortMetric[m] || m,
+    data: zoneOrder.map(z => {
+      const cz = contribByZone[z];
+      return cz ? Math.round(cz.sums[m] / cz.n * 100) / 100 : 0;
+    }),
+    backgroundColor: (metricColors[m] || '#64748b') + 'cc',
+    borderColor: metricColors[m] || '#64748b',
+    borderWidth: 1
+  }));
+  upsertChart('metricContrib', 'chartMetricContrib', {
+    type: 'bar',
+    data: { labels: zoneOrder, datasets: contribDatasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 }, color: chartTickColor() } },
+        tooltip: { mode: 'index', intersect: false, callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + ' pts' } }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: chartTickColor(), font: { size: 11 } } },
+        y: { stacked: true, beginAtZero: true, grid: { color: chartGridColor() }, ticks: { color: chartTickColor(), font: { size: 11 } } }
+      }
+    }
+  });
+  const insContrib = document.getElementById('insightMetricContrib');
+  if (insContrib) {
+    const avgContrib = {};
+    metrics.forEach(m => {
+      let s = 0, n = 0;
+      zoneOrder.forEach(z => { const cz = contribByZone[z]; if (cz) { s += cz.sums[m] / cz.n; n++; } });
+      avgContrib[m] = n > 0 ? s / n : 0;
+    });
+    const topM = metrics.slice().sort((a, b) => avgContrib[b] - avgContrib[a])[0];
+    insContrib.innerHTML = bulb + '<b>' + escapeHtml(shortMetric[topM] || topM) + '</b> contributes the most to scores (avg <b>' + avgContrib[topM].toFixed(1) + '</b> pts per zone), stacked per zone below.';
+  }
+
+  // ─── 11. Center Head Leaderboard ───
+  const cHeads = {};
+  centers.forEach(c => {
+    const h = c.centerHead || 'Unknown';
+    if (!cHeads[h]) cHeads[h] = { sum: 0, n: 0 };
+    cHeads[h].sum += c.totalScore;
+    cHeads[h].n++;
+  });
+  const cHeadList = Object.keys(cHeads)
+    .map(h => ({ head: h, avg: Math.round(cHeads[h].sum / cHeads[h].n * 100) / 100, n: cHeads[h].n }))
+    .sort((a, b) => b.avg - a.avg);
+  const topCH = cHeadList.slice(0, 10);
+  const bottomCH = cHeadList.slice(-10).reverse();
+  // CH → their centers (with BH names) for labels & tooltips
+  const chCenters = {};
+  centers.forEach(c => {
+    const h = c.centerHead || 'Unknown';
+    if (!chCenters[h]) chCenters[h] = [];
+    chCenters[h].push({ center: c.center, bh: c.businessHead || '—' });
+  });
+  const chSub = h => {
+    const bhs = uniq((chCenters[h.head] || []).map(x => x.bh));
+    const shown = bhs.slice(0, 2).join(', ');
+    return 'BH: ' + shown + (bhs.length > 2 ? ' +' + (bhs.length - 2) + ' more' : '');
+  };
+  const chTip = h => {
+    const cs = (chCenters[h.head] || []).map(x => x.center);
+    const shown = cs.slice(0, 3).join(', ');
+    return 'Centers: ' + shown + (cs.length > 3 ? ' +' + (cs.length - 3) + ' more' : '');
+  };
+  headBar('chartCenterHeadTop', topCH, 'rgba(217,70,239,0.85)', chSub, chTip);
+  headBar('chartCenterHeadBottom', bottomCH, 'rgba(244,63,94,0.85)', chSub, chTip);
+  const insCH = document.getElementById('insightCenterHeads');
+  if (insCH) {
+    if (cHeadList.length > 0) {
+      insCH.innerHTML = bulb + '<b>' + escapeHtml(topCH[0].head) + '</b> leads with avg <b>' + topCH[0].avg.toFixed(1) + '</b> across ' + topCH[0].n + ' center(s); <b>' + escapeHtml(bottomCH[bottomCH.length - 1].head) + '</b> trails at <b>' + bottomCH[bottomCH.length - 1].avg.toFixed(1) + '</b>.';
+    } else {
+      insCH.innerHTML = bulb + 'No data for this selection.';
+    }
+  }
+
+  // ─── 7. Most Improved / Declined Centers ───
+  const firstDate = dates[0];
+  const scoresFirst = computeScoresForDate(firstDate, f);
+  const scoresLast = computeScoresForDate(f.date, f);
+  const byCenter2 = {};
+  scoresFirst.forEach(s => byCenter2[s.center] = { first: s.score });
+  scoresLast.forEach(s => { if (byCenter2[s.center]) byCenter2[s.center].last = s.score; });
+  const movers = Object.keys(byCenter2)
+    .filter(c => byCenter2[c].last != null)
+    .map(c => ({ center: c, delta: Math.round((byCenter2[c].last - byCenter2[c].first) * 100) / 100 }))
+    .sort((a, b) => b.delta - a.delta);
+  const up = movers.slice(0, 5);
+  const down = movers.slice(-5).reverse();
+  const moverBar = (chartId, list, color) => {
+    upsertChart(chartId, chartId, {
+      type: 'bar',
+      data: {
+        labels: list.map(m => m.center),
+        datasets: [{ label: 'Score change', data: list.map(m => m.delta), backgroundColor: color, borderRadius: 5, borderSkipped: false }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ' ' + (ctx.parsed.x > 0 ? '+' : '') + ctx.parsed.x.toFixed(2) + ' pts' } }
+        },
+        scales: {
+          x: { grid: { color: chartGridColor() }, ticks: { color: chartTickColor(), font: { size: 11 } } },
+          y: { grid: { display: false }, ticks: { color: chartTickColor(), font: { size: 10 } } }
+        }
+      }
+    });
+  };
+  moverBar('chartMoversUp', up, 'rgba(16,185,129,0.85)');
+  moverBar('chartMoversDown', down, 'rgba(244,63,94,0.85)');
+  const insUp = document.getElementById('insightMoversUp');
+  if (insUp) {
+    if (up.length > 0) {
+      insUp.innerHTML = bulb + '<b>' + escapeHtml(up[0].center) + '</b> improved the most: <b>+' + up[0].delta.toFixed(1) + '</b> points from ' + firstDate + ' to ' + f.date + '.';
+    } else {
+      insUp.innerHTML = bulb + 'No data for this selection.';
+    }
+  }
+  const insDown = document.getElementById('insightMoversDown');
+  if (insDown) {
+    if (down.length > 0) {
+      insDown.innerHTML = bulb + '<b>' + escapeHtml(down[0].center) + '</b> declined the most: <b>' + down[0].delta.toFixed(1) + '</b> points from ' + firstDate + ' to ' + f.date + '.';
+    } else {
+      insDown.innerHTML = bulb + 'No data for this selection.';
     }
   }
 }
