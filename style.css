@@ -28,6 +28,7 @@ body { background: #f5f2f2; margin: 0; }
 
 /* ─── KPI card ─── */
 .kpi-card { transition: all 0.3s cubic-bezier(0.4,0,0.2,1); }
+
 .kpi-card:hover { transform: translateY(-4px); box-shadow: 0 16px 40px -8px rgba(0,0,0,0.15); }
 
 /* ─── Frozen Y-axis scrollable charts ───

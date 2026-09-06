@@ -16,6 +16,7 @@
  *  2. In the sheet: Extensions → Apps Script. Delete the default
  *     code and paste this whole file. (Script must be BOUND to the
  *     sheet so getActiveSpreadsheet() works.)
+ 
  *  3. Click Deploy → New deployment → type "Web app":
  *       - Description:  OTP backend
  *       - Execute as:   Me (email will be sent from YOUR Gmail)

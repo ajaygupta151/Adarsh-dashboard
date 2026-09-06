@@ -86,6 +86,7 @@ plain-text cousin).
 
 Think of `script.js` as following a recipe every time the page loads:
 
+
 ### Step 1 — Go fetch the sheet
 `loadData()` — like sending someone to go download the Excel file from the
 internet. Since browsers sometimes block cross-website downloads (called

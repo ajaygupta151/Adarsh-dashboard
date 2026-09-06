@@ -128,6 +128,7 @@ function initLogin() {
     loadData();
     return;
   }
+  
   loginSendOtpHtml = DOM.loginSendOtp.innerHTML;
   loginVerifyHtml = DOM.loginVerify.innerHTML;
   DOM.loginSendOtp.addEventListener('click', sendOtp);
