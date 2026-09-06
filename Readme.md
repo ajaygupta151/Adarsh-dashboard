@@ -27,7 +27,7 @@ That's it. Everything else in this document is just "how" it does that.
 
 ---
 
-## 1. The Three Files — What Each One Is
+## 1. The Files — What Each One Is
 
 Think of building a dashboard like building a car:
 
@@ -36,9 +36,11 @@ Think of building a dashboard like building a car:
 | `index.html` | The **body/frame** of the car | Just decides "here's a box for the header, here's a box for filters, here's a box for the chart." It has NO brains — it doesn't calculate anything. |
 | `style.css` | The **paint job** | Decides colors, fonts, spacing, rounded corners, red/green highlighting. Makes it look nice. Has NO logic either. |
 | `script.js` | The **engine + driver's brain** | ALL the thinking happens here: downloading data, doing math, deciding what color a score should be, drawing charts. This is the file that matters for "logic." |
+| `otp-backend.gs` | The **security guard at the gate** | A Google Apps Script that runs on Google's servers. It generates OTPs, emails them via Gmail, and checks them against a Google Sheet log — so only people with a valid `@pw.live` email can get past the login screen. |
 
 So when you ask "where is the logic for X," the answer is **always**
-`script.js`.
+`script.js` (and for the login door, `otp-backend.gs` is the guard that
+sits outside).
 
 ---
 
@@ -472,6 +474,62 @@ line, and hovering shows the centers they manage.
 | 6 | **Leaderboard labels** | Business Head and Center Head leaderboards show BOTH names (BH + CH) on two lines, and hovering a bar lists the centers that head manages. |
 | 7 | **Date-filter consistency** | The Detailed Overview now uses the **selected date's** scores everywhere (sum of Column N for that date), matching the Overview tab — previously it always showed the latest date. |
 | 8 | **Dark mode coverage** | All new cards, tables, and charts render correctly in dark mode. |
+| 9 | **OTP login gate** | The portal now opens only after email + OTP verification. Only `@pw.live` emails are accepted; the login screen matches the dashboard's dark theme. |
+| 10 | **Real OTP emails via Apps Script** | A Google Apps Script backend (`otp-backend.gs`) generates OTPs, logs them in a Google Sheet (`OTP_Log`), and emails them via Gmail. OTPs expire after 5 minutes and lock after 5 wrong attempts. |
 
 ---
+
+## 12. The OTP Login (how the door works)
+
+The dashboard now has a **locked front door**. Before you see any data,
+you must prove you work at Physics Wallah:
+
+### Step 1 — Enter your work email
+Only emails ending in `@pw.live` are accepted. Anything else gets a
+friendly "Invalid email" message.
+
+### Step 2 — Get the OTP
+The page asks the backend (a Google Apps Script) for a one-time password.
+The backend:
+1. Generates a random 6-digit code (e.g. `368205`).
+2. Writes it into a Google Sheet (`OTP_Log`) with a timestamp.
+3. Emails it to you from the script owner's Gmail.
+
+### Step 3 — Enter the OTP
+The backend looks up your email in the sheet and compares the code:
+- ✅ **Match** → the portal opens. Your browser remembers you for this
+  tab (`sessionStorage`), so refreshing doesn't ask again — but closing
+  the tab means logging in again next time.
+- ❌ **No match** → "Incorrect OTP", and the attempt is counted.
+- ⏰ **Older than 5 minutes** → expired, request a new one.
+- 🔒 **5 wrong attempts** → locked, request a new one.
+
+### Where the OTP lives
+Every OTP is logged in the `OTP_Log` sheet (created automatically on
+first use):
+
+```
+Email | OTP | CreatedAt | ExpiresAt | Status | Attempts | VerifiedAt
+```
+
+### Deploying the backend (one-time setup)
+1. Create a Google Sheet → **Extensions → Apps Script**.
+2. Paste the contents of `otp-backend.gs` into the editor (the script
+   must be **bound** to the sheet so it can write to it).
+3. **Deploy → New deployment → Web app**:
+   - Execute as: **Me** (OTP emails come from your Gmail)
+   - Who has access: **Anyone**
+4. Copy the `/exec` URL and paste it into `script.js` as
+   `OTP_BACKEND_URL`.
+5. To update the backend later: edit the code, then **Deploy → Manage
+   deployments → Edit (pencil) → New version → Deploy**. The URL stays
+   the same.
+
+> ⚠️ **Demo mode:** if `OTP_BACKEND_URL` is empty, the page falls back to
+> generating the OTP locally and showing it on screen (no email). Handy
+> for testing the login flow without a backend.
+
+> 💡 **Gotcha:** Google Sheets stores a numeric-looking OTP (e.g. `123456`)
+> as a **number**, not text. The backend compares OTPs as strings
+> (`String(row[1]) === otp`) so this never causes a "wrong OTP" error.
 
