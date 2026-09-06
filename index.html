@@ -35,6 +35,69 @@
     </div>
   </div>
 
+  <!-- ═══════ LOGIN OVERLAY (OTP gate) ═══════ -->
+  <div id="loginOverlay" class="fixed inset-0 flex items-center justify-center" style="background:#0a0a0c;z-index:70">
+    <div class="w-full max-w-md px-6">
+      <div class="rounded-3xl border border-white/10 bg-[#131318] shadow-2xl overflow-hidden">
+        <!-- Header -->
+        <div class="px-8 pt-8 pb-6 text-center" style="background:linear-gradient(135deg,#1a0a10,#131318)">
+          <div class="logo-tile w-16 h-16 mx-auto mb-4 rounded-2xl bg-white flex items-center justify-center shadow-lg overflow-hidden ring-1 ring-black/10">
+            <img src="pw-logo.svg" alt="Physics Wallah" class="w-11 h-11">
+          </div>
+          <h1 class="text-lg font-extrabold text-white tracking-tight">Adarsh Vidyapeeth</h1>
+          <p class="text-xs text-slate-400 mt-1">Command Center — Secure Access</p>
+        </div>
+        <!-- Body -->
+        <div class="px-8 pb-8">
+          <!-- Step 1: Email -->
+          <div id="loginStepEmail">
+            <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Work Email</label>
+            <div class="relative">
+              <i class="fa-solid fa-envelope absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm"></i>
+              <input id="loginEmail" type="email" placeholder="name@pw.live" autocomplete="off" spellcheck="false"
+                class="w-full rounded-xl border border-white/10 bg-[#0a0a0c] text-white text-sm pl-10 pr-4 py-3 outline-none focus:border-red-500/60 focus:ring-2 focus:ring-red-500/20 transition-all">
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1.5"><i class="fa-solid fa-circle-info mr-1"></i>Only <span class="text-slate-300 font-semibold">@pw.live</span> emails are allowed</p>
+            <button id="loginSendOtp" class="mt-4 w-full rounded-xl py-3 text-sm font-bold text-white transition-all active:scale-[0.98]"
+              style="background:linear-gradient(135deg,#e21b38,#b3142b)">
+              <i class="fa-solid fa-paper-plane mr-2"></i>Send OTP
+            </button>
+          </div>
+          <!-- Step 2: OTP -->
+          <div id="loginStepOtp" class="hidden">
+            <div class="flex items-center gap-2 mb-1.5">
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">Enter OTP</label>
+              <span class="text-[10px] text-slate-500">sent to <span id="loginEmailDisplay" class="text-slate-300 font-semibold"></span></span>
+            </div>
+            <div class="flex gap-2">
+              <input id="loginOtp" type="text" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code"
+                class="flex-1 min-w-0 rounded-xl border border-white/10 bg-[#0a0a0c] text-white text-lg tracking-[0.5em] text-center py-3 outline-none focus:border-red-500/60 focus:ring-2 focus:ring-red-500/20 transition-all">
+              <button id="loginVerify" class="shrink-0 rounded-xl px-6 text-sm font-bold text-white transition-all active:scale-[0.98]"
+                style="background:linear-gradient(135deg,#e21b38,#b3142b)">
+                <i class="fa-solid fa-check mr-1"></i>Verify
+              </button>
+            </div>
+            <div class="flex items-center justify-between mt-3">
+              <button id="loginResend" class="text-xs text-slate-400 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                <i class="fa-solid fa-rotate-right mr-1"></i>Resend OTP
+              </button>
+              <span id="loginTimer" class="text-xs text-slate-500"></span>
+            </div>
+            <button id="loginBack" class="mt-2 text-[11px] text-slate-500 hover:text-slate-300 transition-colors">
+              <i class="fa-solid fa-arrow-left mr-1"></i>Change email
+            </button>
+          </div>
+          <!-- Message -->
+          <div id="loginMsg" class="hidden mt-4 text-xs rounded-lg px-3 py-2.5"></div>
+        </div>
+        <!-- Footer -->
+        <div class="px-8 py-3 border-t border-white/5 bg-[#0a0a0c] text-center">
+          <p class="text-[10px] text-slate-500"><i class="fa-solid fa-shield-halved mr-1"></i>Protected access · OTP verified</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══════ MAIN APP ═══════ -->
   <div id="app" class="hidden min-h-screen">
 

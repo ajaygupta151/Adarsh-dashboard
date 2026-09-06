@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   DOM.refreshBtn.addEventListener('click', () => location.reload());
   DOM.themeToggle.addEventListener('click', toggleTheme);
   DOM.exportCsvBtn.addEventListener('click', exportCsv);
-  loadData();
+  initLogin();
 });
 
 /* ═══════════════════════════════════════════════════════════════
@@ -54,6 +54,19 @@ function cacheDOM() {
   DOM.resetFiltersBtn = document.getElementById('resetFiltersBtn');
   DOM.latestSearch = document.getElementById('latestSearch');
   DOM.exportCsvBtn = document.getElementById('exportCsvBtn');
+
+  DOM.loginOverlay = document.getElementById('loginOverlay');
+  DOM.loginEmail = document.getElementById('loginEmail');
+  DOM.loginSendOtp = document.getElementById('loginSendOtp');
+  DOM.loginStepEmail = document.getElementById('loginStepEmail');
+  DOM.loginStepOtp = document.getElementById('loginStepOtp');
+  DOM.loginEmailDisplay = document.getElementById('loginEmailDisplay');
+  DOM.loginOtp = document.getElementById('loginOtp');
+  DOM.loginVerify = document.getElementById('loginVerify');
+  DOM.loginResend = document.getElementById('loginResend');
+  DOM.loginTimer = document.getElementById('loginTimer');
+  DOM.loginBack = document.getElementById('loginBack');
+  DOM.loginMsg = document.getElementById('loginMsg');
 
   DOM.kpiTopCenter = document.getElementById('kpiTopCenter');
   DOM.kpiTopScore = document.getElementById('kpiTopScore');
@@ -89,6 +102,162 @@ function cacheDOM() {
   DOM.topWhyList = document.getElementById('topWhyList');
   DOM.bottomWhyList = document.getElementById('bottomWhyList');
   DOM.zoneInsightsList = document.getElementById('zoneInsightsList');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LOGIN / OTP GATE
+   Portal opens only after OTP verification.
+   Email must end with @pw.live.
+
+   Backend: Google Apps Script (see otp-backend.gs in this folder).
+   Deploy it as a Web App and paste the /exec URL below.
+   Empty URL = demo mode (OTP generated locally, shown on screen).
+   ═══════════════════════════════════════════════════════════════ */
+const OTP_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbza4KRl-zlohx_TG5FfF4UXINLJa3iBqi69HoNw8d3eT0IY9HpCzzH0WqqZ_ZnAmd-R/exec';
+
+let pendingOtp = null;
+let otpTimer = null;
+let otpCountdown = 0;
+let loginSendOtpHtml = '';
+let loginVerifyHtml = '';
+
+function initLogin() {
+  // Already verified in this browser session → skip login
+  if (sessionStorage.getItem('pw_portal_verified') === '1') {
+    DOM.loginOverlay.classList.add('hidden');
+    loadData();
+    return;
+  }
+  loginSendOtpHtml = DOM.loginSendOtp.innerHTML;
+  loginVerifyHtml = DOM.loginVerify.innerHTML;
+  DOM.loginSendOtp.addEventListener('click', sendOtp);
+  DOM.loginVerify.addEventListener('click', verifyOtp);
+  DOM.loginResend.addEventListener('click', sendOtp);
+  DOM.loginBack.addEventListener('click', () => {
+    DOM.loginStepOtp.classList.add('hidden');
+    DOM.loginStepEmail.classList.remove('hidden');
+    clearLoginMsg();
+  });
+  DOM.loginEmail.addEventListener('keydown', e => { if (e.key === 'Enter') sendOtp(); });
+  DOM.loginOtp.addEventListener('input', () => {
+    DOM.loginOtp.value = DOM.loginOtp.value.replace(/\D/g, '').slice(0, 6);
+    if (DOM.loginOtp.value.length === 6) verifyOtp();
+  });
+  DOM.loginOtp.addEventListener('keydown', e => { if (e.key === 'Enter') verifyOtp(); });
+}
+
+function showLoginMsg(type, html) {
+  const styles = {
+    error:   'bg-red-500/10 text-red-300 border border-red-500/20',
+    success: 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20',
+    info:    'bg-blue-500/10 text-blue-300 border border-blue-500/20'
+  };
+  DOM.loginMsg.className = 'mt-4 text-xs rounded-lg px-3 py-2.5 ' + (styles[type] || styles.info);
+  DOM.loginMsg.innerHTML = html;
+  DOM.loginMsg.classList.remove('hidden');
+}
+function clearLoginMsg() { DOM.loginMsg.classList.add('hidden'); }
+
+function setLoginBusy(btn, busy, spinnerLabel, originalHtml) {
+  btn.disabled = busy;
+  btn.innerHTML = busy
+    ? '<i class="fa-solid fa-spinner fa-spin mr-2"></i>' + spinnerLabel
+    : originalHtml;
+}
+
+async function sendOtp() {
+  const email = DOM.loginEmail.value.trim();
+  if (!/^[^\s@]+@pw\.live$/i.test(email)) {
+    showLoginMsg('error', '<i class="fa-solid fa-circle-exclamation mr-1"></i>Invalid email — only <b>@pw.live</b> emails are allowed.');
+    return;
+  }
+  clearLoginMsg();
+  setLoginBusy(DOM.loginSendOtp, true, 'Sending…', loginSendOtpHtml);
+  try {
+    if (OTP_BACKEND_URL) {
+      const res = await fetch(OTP_BACKEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'sendOtp', email })
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Could not send OTP.');
+    } else {
+      // Demo mode — generate locally and show on screen
+      pendingOtp = String(Math.floor(100000 + Math.random() * 900000));
+    }
+    DOM.loginEmailDisplay.textContent = email;
+    DOM.loginStepEmail.classList.add('hidden');
+    DOM.loginStepOtp.classList.remove('hidden');
+    DOM.loginOtp.value = '';
+    DOM.loginOtp.focus();
+    if (OTP_BACKEND_URL) {
+      showLoginMsg('info', '<i class="fa-solid fa-envelope-open-text mr-1"></i>OTP sent to <b>' + email + '</b> — check your inbox.');
+    } else {
+      showLoginMsg('info',
+        '<i class="fa-solid fa-envelope-open-text mr-1"></i>OTP sent to <b>' + email + '</b><br>' +
+        '<span class="text-lg font-bold tracking-[0.3em] text-white">' + pendingOtp + '</span>' +
+        '<span class="text-[10px] opacity-70 block mt-0.5">(demo — OTP shown here; real email needs a backend)</span>');
+    }
+    startOtpTimer();
+  } catch (err) {
+    showLoginMsg('error', '<i class="fa-solid fa-circle-exclamation mr-1"></i>' + (err.message || 'Could not send OTP. Try again.'));
+  } finally {
+    setLoginBusy(DOM.loginSendOtp, false, '', loginSendOtpHtml);
+  }
+}
+
+async function verifyOtp() {
+  const val = DOM.loginOtp.value.trim();
+  if (val.length !== 6) {
+    showLoginMsg('error', '<i class="fa-solid fa-circle-exclamation mr-1"></i>Please enter the 6-digit OTP.');
+    return;
+  }
+  const email = DOM.loginEmailDisplay.textContent;
+  setLoginBusy(DOM.loginVerify, true, 'Verifying…', loginVerifyHtml);
+  try {
+    if (OTP_BACKEND_URL) {
+      const res = await fetch(OTP_BACKEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'verifyOtp', email, otp: val })
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Verification failed.');
+    } else {
+      if (val !== pendingOtp) throw new Error('Incorrect OTP. Please try again.');
+    }
+    clearInterval(otpTimer);
+    sessionStorage.setItem('pw_portal_verified', '1');
+    showLoginMsg('success', '<i class="fa-solid fa-circle-check mr-1"></i>Verified! Opening portal…');
+    setTimeout(() => {
+      DOM.loginOverlay.classList.add('hidden');
+      loadData();
+    }, 600);
+  } catch (err) {
+    showLoginMsg('error', '<i class="fa-solid fa-circle-xmark mr-1"></i>' + (err.message || 'Verification failed. Try again.'));
+    DOM.loginOtp.value = '';
+    DOM.loginOtp.focus();
+  } finally {
+    setLoginBusy(DOM.loginVerify, false, '', loginVerifyHtml);
+  }
+}
+
+function startOtpTimer() {
+  clearInterval(otpTimer);
+  otpCountdown = 60;
+  DOM.loginResend.disabled = true;
+  DOM.loginTimer.textContent = 'Resend in ' + otpCountdown + 's';
+  otpTimer = setInterval(() => {
+    otpCountdown--;
+    if (otpCountdown <= 0) {
+      clearInterval(otpTimer);
+      DOM.loginResend.disabled = false;
+      DOM.loginTimer.textContent = '';
+    } else {
+      DOM.loginTimer.textContent = 'Resend in ' + otpCountdown + 's';
+    }
+  }, 1000);
 }
 
 /* ═══════════════════════════════════════════════════════════════
